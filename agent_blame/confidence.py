@@ -51,7 +51,11 @@ def compute_confidence(evidence: List[EvidenceItem]) -> Confidence:
     score = _clamp(min(support, 1.0) + counter)
 
     introducers = {e.commit for e in evidence if e.kind == "introduced_by"}
-    reverts = [e for e in evidence if e.is_counter and e.kind == "revert"]
+    # Phase 2E: a structured explicit revert is the same class of fact as
+    # the message-based revert (both mean "behavior was reversed"); both
+    # kinds count for the contradiction and MEDIUM-cap rules below.
+    reverts = [e for e in evidence if e.is_counter
+               and e.kind in ("revert", "explicit_revert")]
 
     # 1. Direct revert of an introducer is a hard contradiction.
     if any(e.commit in introducers for e in reverts):

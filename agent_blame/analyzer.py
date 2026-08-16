@@ -312,6 +312,35 @@ def analyze(repo: Repository, target: Target, mode: str = "why",
                          "symbol-level continuity across the move commit"],
                 is_counter=False)]
 
+    # --- Regression detection (Phase 2E) ------------------------------
+    # A later commit that reverts or fixes behavior associated with the
+    # target's introducing commits. Correlation is never presented as
+    # causation; findings use "reverts" / "evidence indicates" language.
+    # EXPLICIT_REVERT replaces the weak message-based "revert" item for
+    # the same commit (same underlying fact - never double-counted).
+    from .regression import (detect_regressions,  # lazy: avoids import cycle
+                             regressions_to_evidence)
+    regressions = detect_regressions(
+        repo, memo, target, introducing, later, stats=stats,
+        symbol_name=target_sym.name if target_sym is not None else None,
+        has_symbol=target_sym is not None)
+    result.regressions = [r.to_dict() for r in regressions]
+    reg_evidence = regressions_to_evidence(regressions)
+    if reg_evidence:
+        # The explicit_revert evidence names the REVERTED commit (that is
+        # what confidence's contradiction rule needs); the message-based
+        # "revert" item is keyed by the REVERTING commit - so dedupe on
+        # the fix_commit (the commit that did the reverting).
+        revert_commits = {r["fix_commit"] for r in result.regressions
+                          if r["type"] == "EXPLICIT_REVERT"
+                          and r.get("fix_commit")}
+        if revert_commits:
+            all_evidence = [
+                e for e in all_evidence
+                if not (e.kind == "revert" and e.commit in revert_commits)
+            ]
+        all_evidence = [*all_evidence, *reg_evidence]
+
     ranked = rank_evidence(all_evidence)
 
     for e in ranked:

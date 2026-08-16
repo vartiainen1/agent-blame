@@ -97,6 +97,7 @@ def _root_raw_diff(repo: Repository, sha: str, pathspec: List[str]) -> str:
 
 
 def _build_after(repo: Repository, sha: str, path: str,
+                 memo: AnalysisMemo = None,
                  max_count: int = 30) -> dict:
     """Bounded scan of commits that touched `path` AFTER `sha`.
 
@@ -106,10 +107,23 @@ def _build_after(repo: Repository, sha: str, path: str,
     the same vocabulary. This is intentionally separate from the
     before-state evidence - later history must never retroactively alter
     the confidence of "what introduced the previous behavior".
+
+    Phase 2E: later commits are ALSO classified into structured regression
+    findings, with the analyzed commit itself as the reference point: a
+    later commit that explicitly reverts THIS commit is an EXPLICIT_REVERT
+    (the analyzed change was reversed); a later fix-language commit with
+    overlap becomes LIKELY/POSSIBLE_REGRESSION_FIX. `memo` shares the
+    commit/stats caches so this costs no extra git calls beyond the scan
+    itself.
     """
+    if memo is None:
+        from .analyzer import AnalysisMemo
+        memo = AnalysisMemo()
     commits = later_commits_after(repo, sha, path, max_count=max_count)
     if not commits:
         return {}
+    for c in commits:
+        memo.commit_map.setdefault(c.sha, c)
     later: List[dict] = []
     reverts = fixes = 0
     for c in commits:
@@ -125,6 +139,24 @@ def _build_after(repo: Repository, sha: str, path: str,
             reverts += 1
         elif "fix" in kinds:
             fixes += 1
+
+    # Regression classification (Phase 2E): the analyzed commit is the
+    # reference; the after-commits are the corrective candidates.
+    regressions: List[dict] = []
+    try:
+        from .models import Target as _T
+        from .regression import detect_regressions
+        stats = memo.file_stats(repo, path, revision="HEAD")
+        findings = detect_regressions(
+            repo, memo, _T(file=path, start_line=1, end_line=1),
+            introducing=[sha],
+            later=[c.sha for c in commits],
+            stats=stats,
+        )
+        regressions = [f.to_dict() for f in findings]
+    except Exception:
+        regressions = []
+
     summary = (f"{len(later)} later commit(s) touched this file "
                f"after this commit")
     extra = []
@@ -132,6 +164,8 @@ def _build_after(repo: Repository, sha: str, path: str,
         extra.append(f"{reverts} revert(s)")
     if fixes:
         extra.append(f"{fixes} fix/regression-related")
+    if regressions:
+        extra.append(f"{len(regressions)} regression finding(s)")
     if extra:
         summary += f" ({', '.join(extra)})"
     return {
@@ -139,6 +173,7 @@ def _build_after(repo: Repository, sha: str, path: str,
         "count": len(later),
         "reverts": reverts,
         "fixes": fixes,
+        "regressions": regressions,
         "summary": summary,
     }
 
@@ -306,7 +341,7 @@ def analyze_commit(repo: Repository, rev: str,
         hunks = _parse_hunks(raw)
 
         change = CommitChange(path=path, status=status, old_path=old_path)
-        change.after = _build_after(repo, ci.sha, path)
+        change.after = _build_after(repo, ci.sha, path, memo=memo)
 
         if not hunks:
             if status == "R" and baseline is not None:
@@ -453,6 +488,10 @@ def analyze_commit(repo: Repository, rev: str,
             mv = rename_movement(old_path, path, _analysis_origin(change))
             mv["moved_by"] = ci.sha
             change.movement = mv
+
+        # Phase 2E: if the analyzed commit ITSELF is a revert, surface the
+        # relationship per change (the reverted commit touched this file).
+        _attach_self_revert(repo, memo, ci, change, path, old_path)
         result.changes.append(change)
 
     return result
@@ -466,3 +505,53 @@ def _analysis_origin(change: CommitChange) -> Optional[str]:
             if f.get("kind") == "blame":
                 return f.get("commit")
     return None
+
+
+def _attach_self_revert(repo: Repository, memo, ci, change: CommitChange,
+                        path: str, old_path: Optional[str]) -> None:
+    """Phase 2E: classify a revert commit's relationship to one change.
+
+    When the analyzed commit is itself a revert (structured trailer), the
+    reverted commit is the historical reference point: the current change
+    RESTORES the behavior the reverted commit had removed. Relationship is
+    DIRECT_RANGE_OVERLAP when the before-state analysis blames the
+    reverted commit as the origin of the previous lines; FILE_OVERLAP when
+    it merely touched this file. Never claims the reverted commit "caused
+    a bug" - only that it was explicitly reverted.
+    """
+    try:
+        from .history import commit_files as _cf
+        revert_of = _revert_ref(ci)
+        if not revert_of:
+            return
+        rfiles = _cf(repo, revert_of)
+        if path not in rfiles and not (old_path and old_path in rfiles):
+            return  # reverted commit unrelated to this change's file
+        origin = _analysis_origin(change)
+        direct = False
+        if origin is not None:
+            # The trailer may cite an abbreviated sha; match by prefix.
+            direct = (origin == revert_of
+                      or origin.startswith(revert_of)
+                      or revert_of.startswith(origin[:7]))
+        change.regressions.append({
+            "type": "EXPLICIT_REVERT",
+            "confidence": "HIGH" if direct else "MEDIUM",
+            "relationship": "DIRECT_RANGE_OVERLAP" if direct
+            else "FILE_OVERLAP",
+            "original_commit": revert_of,
+            "fix_commit": ci.sha,
+            "reverted_commit": revert_of,
+            "target_path": path,
+            "target_symbol": None,
+            "signals": ["git_revert_relationship",
+                         "reverted_file_overlap"]
+            + (["reverted_commit_is_origin"] if direct else []),
+            "explanation": (
+                f"this commit explicitly reverts {revert_of[:8]}, "
+                f"which changed {path}" + (
+                    "; the reverted commit is blamed as the origin of "
+                    "the previous behavior" if direct else "")),
+        })
+    except Exception:
+        pass  # never let revert bookkeeping crash the analysis

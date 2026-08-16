@@ -87,6 +87,30 @@ def _render_movement(out: list, mv: dict, indent: str = "  ") -> None:
     out.append("")
 
 
+def _render_regressions(out: list, regressions: list,
+                        indent: str = "  ") -> None:
+    """Render regression findings (Phase 2E) with careful, non-causal wording.
+
+    The language contract: findings say "reverts" / "evidence indicates" /
+    "possible ... sequence" - never "caused the bug" or "is buggy". A
+    revert proves the change was reversed, not that it was wrong.
+    """
+    if not regressions:
+        return
+    out.append(_b(f"{indent}Historical regression evidence"))
+    for r in regressions:
+        rtype = r.get("type", "?")
+        conf = r.get("confidence", "?")
+        out.append(f"{indent}  • {rtype} ({conf})")
+        exp = r.get("explanation")
+        if exp:
+            out.append(f"{indent}    {sanitize(exp)}")
+        sigs = r.get("signals") or []
+        for s in sigs[:5]:
+            out.append(f"{indent}    · {sanitize(s)}")
+    out.append("")
+
+
 def render_terminal(result: AnalysisResult, verbose: bool = False) -> str:
     """Render an AnalysisResult as human-readable terminal output.
 
@@ -156,6 +180,9 @@ def render_terminal(result: AnalysisResult, verbose: bool = False) -> str:
         for e in result.counter_evidence:
             out.append(f"  ✗ {sanitize(e['text'])}")
         out.append("")
+
+    # --- Regression detection (Phase 2E) -------------------------------
+    _render_regressions(out, result.regressions, indent="")
 
     # --- Movement (Phase 2D) -------------------------------------------
     if result.movement:
@@ -319,6 +346,8 @@ def render_diff_terminal(result: DiffResult, verbose: bool = False) -> str:
                 out.append("    None found.")
             out.append("")
 
+            _render_regressions(out, a.get("regressions", []), indent="  ")
+
             if a.get("symbol") is not None:
                 out.append(_b("  Callers"))
                 if a.get("callers"):
@@ -450,6 +479,7 @@ def render_commit_terminal(result: CommitResult, verbose: bool = False) -> str:
         out.append(_b(header))
         if c.movement:
             _render_movement(out, c.movement, indent="  ")
+        _render_regressions(out, c.regressions, indent="  ")
 
         for g in c.groups:
             if g.new_file:
@@ -556,6 +586,8 @@ def render_commit_terminal(result: CommitResult, verbose: bool = False) -> str:
         if c.after:
             out.append(_b("  After this commit"))
             out.append(f"    · {sanitize(c.after.get('summary', ''))}")
+            _render_regressions(out, c.after.get("regressions", []),
+                                indent="    ")
             if verbose:
                 for lc in c.after.get("later_commits", []):
                     out.append(f"      {sanitize(lc['short'])}  "

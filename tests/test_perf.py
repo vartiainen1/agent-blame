@@ -231,6 +231,60 @@ class TestMovementGitCallBound(unittest.TestCase):
             fx.cleanup()
 
 
+class TestRegressionGitCallBound(unittest.TestCase):
+    """Phase 2E: regression detection must stay bounded.
+
+    It reuses the already-fetched commit metadata and numstat (zero extra
+    git calls for revert-trailer classification) and only fetches
+    per-candidate diffs/tests for a BOUNDED number of fix-language later
+    commits (cap: 5). A history full of "fix ..." commits must not become
+    a per-commit subprocess loop.
+    """
+
+    def test_fix_heavy_history_bounded(self):
+        from agent_blame.analyzer import AnalysisMemo, analyze
+        from agent_blame.models import Target
+        from tests.gitfixture import make_regression_multiple_fixes_fixture
+        fx = make_regression_multiple_fixes_fixture()
+        try:
+            repo = discover_repository(fx.root)
+            counter = _CountingGit()
+            counter.install()
+            try:
+                res = analyze(repo, Target(file="app/retry.py", start_line=2,
+                                           end_line=2), memo=AnalysisMemo())
+            finally:
+                counter.restore()
+            self.assertTrue(res.regressions)
+            self.assertLessEqual(
+                counter.count, 30,
+                f"{counter.count} git calls for one fix-heavy analysis - "
+                f"regression detection must reuse memoized facts, not "
+                f"loop over every later commit")
+        finally:
+            fx.cleanup()
+
+    def test_commit_after_scan_bounded(self):
+        from agent_blame.analyzer import AnalysisMemo
+        from agent_blame.commit import analyze_commit
+        from tests.gitfixture import make_regression_commit_after_revert_fixture
+        fx = make_regression_commit_after_revert_fixture()
+        try:
+            repo = discover_repository(fx.root)
+            counter = _CountingGit()
+            counter.install()
+            try:
+                res = analyze_commit(repo, fx.shas["C"], memo=AnalysisMemo())
+            finally:
+                counter.restore()
+            self.assertLessEqual(
+                counter.count, 35,
+                f"{counter.count} git calls for the commit after-scan - "
+                f"the after-scan must reuse memoized stats/commits")
+        finally:
+            fx.cleanup()
+
+
 class TestMemoReuse(unittest.TestCase):
     """Shared AnalysisMemo must prevent duplicate file-history fetches."""
 

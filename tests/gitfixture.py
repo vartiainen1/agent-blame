@@ -1207,3 +1207,286 @@ def make_movement_commit_fixture() -> GitFixture:
     })
     f.shas = {"A": a, "B": b}
     return f
+
+
+# ---------------------------------------------------------------------------
+# Phase 2E: regression-detection fixtures. Each records the exact shas so
+# tests can assert the CLASSIFICATION (EXPLICIT_REVERT / LIKELY /
+# POSSIBLE / CORRECTIVE_CHANGE / none) and the careful, non-causal wording.
+# ---------------------------------------------------------------------------
+
+def _retry_with(sleep_value: str) -> str:
+    return ("import time\n"
+            "def retry(fn, n=7):\n"
+            f"    time.sleep({sleep_value})\n"
+            "    return fn()\n")
+
+
+def make_regression_revert_sequence_fixture() -> GitFixture:
+    """1. A introduces, B modifies, C reverts B (structured trailer), D
+    modifies again. Standalone WHY on D's lines must find C's revert of B
+    (EXPLICIT_REVERT, FILE_OVERLAP) and B's fix+test (POSSIBLE)."""
+    f = GitFixture()
+    a = f.commit("Add retry with sleep 13", {
+        "app/retry.py": _retry_with(13),
+    }, when="2023-01-01T10:00:00+00:00")
+    b = f.commit("Fix retry timing for 429s", {
+        "app/retry.py": _retry_with(7),
+        "tests/test_retry.py": "def test_429_backoff():\n    assert True\n",
+    }, when="2023-02-01T10:00:00+00:00")
+    c = f.commit(
+        'Revert "Fix retry timing for 429s"\n\nThis reverts commit ' + b + ".",
+        {"app/retry.py": _retry_with(13)},
+        when="2023-03-01T10:00:00+00:00")
+    d = f.commit("Make retry configurable", {
+        "app/retry.py": (
+            "import time\ndef retry(fn, n=7, delay=13):\n"
+            "    time.sleep(delay)\n    return fn()\n"
+        ),
+    }, when="2023-04-01T10:00:00+00:00")
+    f.shas = {"A": a, "B": b, "C": c, "D": d}
+    return f
+
+
+def make_regression_fix_sequence_fixture() -> GitFixture:
+    """5. A introduces, B fixes with corrective shape + tests (LIKELY)."""
+    f = GitFixture()
+    a = f.commit("Add retry with sleep 13", {
+        "app/retry.py": _retry_with(13),
+    })
+    b = f.commit("Fix retry timing for 429s", {
+        "app/retry.py": _retry_with(7),
+        "tests/test_retry.py": "def test_429_backoff():\n    assert True\n",
+    })
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_regression_no_false_positive_fixture() -> GitFixture:
+    """6. Property tests: "fix" language with NO overlap must produce
+    nothing; a revert of an UNRELATED file must produce nothing.
+
+    A introduces retry.py + README. B says "Fix README typo" but only
+    touches README (no overlap with retry.py). C reverts B (trailer) -
+    again only README. Analyzing retry.py must find NO regression
+    findings (Properties 5/6 + revert of unrelated file).
+    """
+    f = GitFixture()
+    a = f.commit("Add retry logic", {
+        "app/retry.py": _retry_with(13),
+        "README.md": "# project\n",
+    })
+    b = f.commit("Fix README typo", {
+        "README.md": "# project (fixed)\n",
+    })
+    c = f.commit(
+        'Revert "Fix README typo"\n\nThis reverts commit ' + b + ".",
+        {"README.md": "# project\n"},
+    )
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_regression_corrective_fixture() -> GitFixture:
+    """9. A "Revert ..." subject WITHOUT a trailer touching the file:
+    CORRECTIVE_CHANGE (weakened - cannot link to a specific commit).
+
+    B says "Revert retry changes" and modifies the sleep value; C then
+    modifies the line again. Analyzing C's line: B is a LATER commit with
+    a revert subject but no structured trailer -> CORRECTIVE_CHANGE.
+    """
+    f = GitFixture()
+    a = f.commit("Add retry logic", {
+        "app/retry.py": _retry_with(13),
+    })
+    b = f.commit("Revert retry changes", {
+        "app/retry.py": _retry_with(7),
+    })
+    c = f.commit("Add configurable delay", {
+        "app/retry.py": (
+            "import time\ndef retry(fn, n=7, delay=13):\n"
+            "    time.sleep(delay)\n    return fn()\n"
+        ),
+    })
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_regression_moved_then_fixed_fixture() -> GitFixture:
+    """8. Regression followed by movement: A introduces foo, B moves it,
+    C fixes it. Property 3: the fix sequence must preserve symbol identity
+    through the move (the finding names the ORIGINAL introducer A)."""
+    f = GitFixture()
+    a = f.commit("Add foo with bug", {
+        "old.py": "def foo():\n    return 1\n",
+    })
+    b = f.mv("old.py", "new.py", "Move foo to new.py")
+    c = f.commit("Fix foo bug", {
+        "new.py": "def foo():\n    return 2\n",
+    })
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_regression_commit_revert_fixture() -> GitFixture:
+    """22. --commit integration: analyzing C (the revert commit) must
+    classify it as EXPLICIT_REVERT with the reverted commit B as origin."""
+    f = GitFixture()
+    a = f.commit("Add retry logic", {
+        "app/retry.py": "def retry(fn):\n    return fn()\n",
+    })
+    b = f.commit("Add timeout to retry", {
+        "app/retry.py": "def retry(fn, timeout=5):\n    return fn()\n",
+    })
+    c = f.commit(
+        'Revert "Add timeout to retry"\n\nThis reverts commit ' + b + ".",
+        {"app/retry.py": "def retry(fn):\n    return fn()\n"},
+    )
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_regression_commit_after_revert_fixture() -> GitFixture:
+    """24. --commit integration: analyzing C when D later reverts C - the
+    AFTER-scan must classify D as EXPLICIT_REVERT of this commit."""
+    f = GitFixture()
+    a = f.commit("Add retry logic", {
+        "app/retry.py": "def retry(fn):\n    return fn()\n",
+    })
+    b = f.commit("Add timeout", {
+        "app/retry.py": "def retry(fn, timeout=5):\n    return fn()\n",
+    })
+    c = f.commit("Fix timeout to 10", {
+        "app/retry.py": "def retry(fn, timeout=10):\n    return fn()\n",
+    })
+    d = f.commit(
+        'Revert "Fix timeout to 10"\n\nThis reverts commit ' + c + ".",
+        {"app/retry.py": "def retry(fn, timeout=5):\n    return fn()\n"},
+    )
+    f.shas = {"A": a, "B": b, "C": c, "D": d}
+    return f
+
+
+def make_regression_malicious_fixture() -> GitFixture:
+    """19. Malicious commit message with fix/revert words + ANSI escapes -
+    must not crash and must not be misclassified by the escape junk. B's
+    only change to retry.py is a comment OUTSIDE any symbol (no overlap)."""
+    f = GitFixture()
+    a = f.commit("Add retry logic", {
+        "app/retry.py": _retry_with(13),
+    })
+    evil = "fix \x1b[2J\x1b[H\r\x1b]0;EVIL\x07this is not a real fix"
+    b = f.commit(evil, {
+        "app/retry.py": "# \x1b[2J comment\n" + _retry_with(13),
+    })
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_regression_unicode_fixture() -> GitFixture:
+    """18. Unicode path with a fix sequence."""
+    f = GitFixture()
+    a = f.commit("Add unicode module", {
+        "src/ünïcode/retry.py": _retry_with(13),
+    })
+    b = f.commit("Fix retry timing", {
+        "src/ünïcode/retry.py": _retry_with(7),
+        "tests/test_retry.py": "def test_429():\n    assert True\n",
+    })
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_regression_multiple_fixes_fixture() -> GitFixture:
+    """11. Multiple sequential fixes: A introduces, B fixes, C fixes again
+    - multiple POSSIBLE/LIKELY findings, deterministic ordering."""
+    f = GitFixture()
+    a = f.commit("Add retry with sleep 13", {
+        "app/retry.py": _retry_with(13),
+    })
+    b = f.commit("Fix retry timing for 429s", {
+        "app/retry.py": _retry_with(7),
+    })
+    c = f.commit("Fix retry for 503s too", {
+        "app/retry.py": _retry_with(5),
+        "tests/test_retry.py": "def test_503():\n    assert True\n",
+    })
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_regression_same_symbol_refactor_fixture() -> GitFixture:
+    """10. Contradictory evidence: A modifies foo, B modifies foo again
+    but is a REFACTOR (no fix language, no removal) - must NOT become a
+    regression (Property 4 / 14 counter-evidence)."""
+    f = GitFixture()
+    a = f.commit("Add foo", {
+        "app/foo.py": "def foo():\n    return 1\n",
+    })
+    b = f.commit("Refactor foo", {
+        "app/foo.py": "def foo():\n    return 2\n",
+    })
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_regression_shallow_fixture() -> GitFixture:
+    """16. Shallow repository: history truncated - regression detection
+    must not invent findings from missing history."""
+    f = GitFixture()
+    f.commit("Add retry with sleep 13", {"app/retry.py": _retry_with(13)})
+    f.commit("Fix retry timing", {"app/retry.py": _retry_with(7)})
+    return f.clone_shallow()
+
+
+def make_regression_diff_fixture() -> GitFixture:
+    """23. --diff integration: the changed line's history contains a fix+
+    revert sequence; the diff analysis must surface the regression finding.
+
+    The worktree edits the sleep line (line 3, unchanged at HEAD after the
+    revert) so the old-side analysis blames a stable introducer and the
+    fix+revert commits appear in the later history."""
+    f = GitFixture()
+    a = f.commit("Add retry with sleep 13", {
+        "app/retry.py": _retry_with(13),
+    })
+    b = f.commit("Fix retry timing for 429s", {
+        "app/retry.py": _retry_with(7),
+        "tests/test_retry.py": "def test_429_backoff():\n    assert True\n",
+    })
+    c = f.commit(
+        'Revert "Fix retry timing for 429s"\n\nThis reverts commit ' + b + ".",
+        {"app/retry.py": _retry_with(13)},
+    )
+    # The worktree changes line 3 (sleep 13 at HEAD) - the old side keeps
+    # the historical context (fix B + revert C) intact.
+    f.write("app/retry.py",
+            "import time\ndef retry(fn, n=7, delay=13):\n"
+            "    time.sleep(delay)\n    return fn()\n")
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_regression_deterministic_fixture() -> GitFixture:
+    """28. Deterministic repeated execution: the same analysis twice must
+    produce byte-identical regression findings."""
+    f = GitFixture()
+    a = f.commit("Add retry with sleep 13", {
+        "app/retry.py": _retry_with(13),
+    })
+    b = f.commit("Fix retry timing for 429s", {
+        "app/retry.py": _retry_with(7),
+        "tests/test_retry.py": "def test_429_backoff():\n    assert True\n",
+    })
+    c = f.commit(
+        'Revert "Fix retry timing for 429s"\n\nThis reverts commit ' + b + ".",
+        {"app/retry.py": _retry_with(13)},
+    )
+    d = f.commit("Make retry configurable", {
+        "app/retry.py": (
+            "import time\ndef retry(fn, n=7, delay=13):\n"
+            "    time.sleep(delay)\n    return fn()\n"
+        ),
+    })
+    f.shas = {"A": a, "B": b, "C": c, "D": d}
+    return f

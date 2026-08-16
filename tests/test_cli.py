@@ -353,6 +353,54 @@ class TestCliMovement(unittest.TestCase):
                         "introducing evidence must be re-attributed to the origin")
 
 
+class TestCliRegression(unittest.TestCase):
+    """Phase 2E: regression findings must appear in terminal + JSON with
+    careful (never causal) wording."""
+
+    def setUp(self):
+        from tests.gitfixture import make_regression_revert_sequence_fixture
+        self.fx = make_regression_revert_sequence_fixture()
+        self.cwd = self.fx.root
+
+    def tearDown(self):
+        self.fx.cleanup()
+
+    def test_terminal_shows_regression_evidence(self):
+        proc = _run_cli(["app/retry.py:4"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = proc.stdout
+        self.assertIn("Historical regression evidence", out)
+        self.assertIn("EXPLICIT_REVERT", out)
+        self.assertIn("explicitly reverts", out)
+        # NEVER causal language.
+        self.assertNotIn("caused the bug", out.lower())
+        self.assertNotIn("is buggy", out.lower())
+
+    def test_json_regressions_block(self):
+        proc = _run_cli(["app/retry.py:4", "--json"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = jsonlib.loads(proc.stdout)
+        self.assertIn("regressions", data)
+        self.assertTrue(data["regressions"])
+        r = data["regressions"][0]
+        self.assertIn("type", r)
+        self.assertIn("confidence", r)
+        self.assertIn("explanation", r)
+
+    def test_commit_terminal_shows_self_revert(self):
+        from tests.gitfixture import make_regression_commit_revert_fixture
+        fx = make_regression_commit_revert_fixture()
+        try:
+            proc = _run_cli(["--commit", fx.shas["C"]], fx.root)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            out = proc.stdout
+            self.assertIn("Historical regression evidence", out)
+            self.assertIn("EXPLICIT_REVERT", out)
+            self.assertIn("explicitly reverts", out)
+        finally:
+            fx.cleanup()
+
+
 class TestCliSecurity(unittest.TestCase):
     """Malicious commit message must not leak control chars via the CLI."""
 

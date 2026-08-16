@@ -51,15 +51,22 @@ def analyze_risk(evidence: List[EvidenceItem], has_history: bool) -> Risk:
     high_reasons: List[str] = []
     low_reasons: List[str] = []
 
-    if "revert" in kinds:
-        reverts = [e for e in evidence if e.kind == "revert"]
+    if "revert" in kinds or "explicit_revert" in kinds:
+        reverts = [e for e in evidence
+                   if e.kind in ("revert", "explicit_revert")]
         high_reasons.append(
             f"previous revert of this behavior ({len(reverts)} revert commit(s))"
         )
-    if "fix_related" in kinds:
-        fixes = [e for e in evidence if e.kind == "fix_related"]
+    if "fix_related" in kinds or "regression_fix" in kinds:
+        fixes = [e for e in evidence
+                 if e.kind in ("fix_related", "regression_fix")]
         high_reasons.append(
             f"regression/fix history around this code ({len(fixes)} fix-related commit(s))"
+        )
+    if "corrective_change" in kinds:
+        high_reasons.append(
+            "a later commit carries revert/fix language about this file "
+            "(unconfirmed correction)"
         )
     if "related_test" in kinds:
         high_reasons.append(

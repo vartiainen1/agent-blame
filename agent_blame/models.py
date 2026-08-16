@@ -240,6 +240,67 @@ class CallerRef:
 
 
 # ---------------------------------------------------------------------------
+# Regression detection (Phase 2E)
+# ---------------------------------------------------------------------------
+#
+# Regression findings are EVIDENCE of a historical correction pattern, never
+# proof of causation. The type ladder (strongest first):
+#
+#   EXPLICIT_REVERT          - structured "This reverts commit <sha>" trailer
+#                              pointing at a commit related to the target
+#   LIKELY_REGRESSION_FIX    - fix language + strong overlap (introducer
+#                              reference, or corrective shape AND tests)
+#   POSSIBLE_REGRESSION_FIX  - fix language + one weak overlap signal
+#   CORRECTIVE_CHANGE        - "Revert"-subject without a trailer, touching
+#                              the target file
+#   NO_REGRESSION_EVIDENCE   - everything else (never emitted as a finding)
+#
+# The relationship field describes HOW the corrective commit overlaps the
+# target: DIRECT_RANGE_OVERLAP / SYMBOL_OVERLAP / FILE_OVERLAP /
+# TEST_EVIDENCE / MESSAGE_REFERENCE / NO_OVERLAP. Correlation is never
+# presented as causation: the explanation text says "reverts" / "evidence
+# indicates", never "caused the bug".
+
+@dataclass(frozen=True)
+class RegressionEvidence:
+    """A structured historical regression/fix finding.
+
+    `type` is the classification (see module docstring ladder).
+    `original_commit` is the commit whose behavior the corrective commit
+    appears to address; `fix_commit` is the corrective commit itself;
+    `reverted_commit` is the commit named by an explicit revert trailer.
+    `relationship` says how the corrective commit overlaps the target.
+    `signals` lists the deterministic signals that drove the decision;
+    `explanation` is the carefully-worded human text (never causal).
+    """
+
+    type: str
+    confidence: str                 # HIGH / MEDIUM / LOW
+    relationship: str               # overlap level (see module docstring)
+    original_commit: Optional[str] = None
+    fix_commit: Optional[str] = None
+    reverted_commit: Optional[str] = None
+    target_path: str = ""
+    target_symbol: Optional[str] = None
+    signals: List[str] = field(default_factory=list)
+    explanation: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "type": self.type,
+            "confidence": self.confidence,
+            "relationship": self.relationship,
+            "original_commit": self.original_commit,
+            "fix_commit": self.fix_commit,
+            "reverted_commit": self.reverted_commit,
+            "target_path": self.target_path,
+            "target_symbol": self.target_symbol,
+            "signals": self.signals,
+            "explanation": self.explanation,
+        }
+
+
+# ---------------------------------------------------------------------------
 # Diff mode (--diff)
 # ---------------------------------------------------------------------------
 
@@ -365,6 +426,7 @@ class CommitChange:
     groups: List[DiffGroup] = field(default_factory=list)
     after: dict = field(default_factory=dict)  # later-history scan
     movement: Optional[dict] = None  # Movement dict (Phase 2D), or None
+    regressions: List[dict] = field(default_factory=list)  # RegressionEvidence dicts (Phase 2E)
 
     def to_dict(self) -> dict:
         return {
@@ -374,6 +436,7 @@ class CommitChange:
             "groups": [g.to_dict() for g in self.groups],
             "after": self.after,
             "movement": self.movement,
+            "regressions": self.regressions,
         }
 
 
@@ -421,6 +484,7 @@ class AnalysisResult:
     callers: List[dict] = field(default_factory=list)   # CallerRef dicts
     symbol: Optional[dict] = None      # resolved target Symbol dict, or None
     movement: Optional[dict] = None    # Movement dict (Phase 2D), or None
+    regressions: List[dict] = field(default_factory=list)  # RegressionEvidence dicts (Phase 2E)
     history: List[dict] = field(default_factory=list)
     risk: Risk = field(default_factory=lambda: Risk("UNKNOWN", []))
     warnings: List[str] = field(default_factory=list)
@@ -437,6 +501,7 @@ class AnalysisResult:
             "inferences": self.inferences,
             "evidence": self.evidence,
             "counter_evidence": self.counter_evidence,
+            "regressions": self.regressions,
             "callers": self.callers,
             "symbol": self.symbol,
             "movement": self.movement,

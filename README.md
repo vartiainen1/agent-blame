@@ -513,6 +513,89 @@ conservative guard, and ambiguity is reported as such.
 
 ---
 
+## Regression detection
+
+Phase 2E answers: **"has this code caused problems before?"** — as
+historical *evidence*, never as a verdict. The tool identifies later
+commits that appear to fix or revert behavior associated with the target,
+and classifies the relationship. The central rule:
+
+> CORRELATION IS NOT PROOF OF CAUSATION.
+
+The tool says "commit C explicitly reverts B" or "evidence indicates C
+corrected behavior introduced by B" — never "B caused the bug" or "this
+code is buggy". A revert proves the change was reversed, not that it was
+wrong.
+
+### Classification ladder (strongest first)
+
+- **EXPLICIT_REVERT** — the commit message carries git's structured
+  `This reverts commit <sha>` trailer. HIGH when the reverted commit is
+  the target's introducer (blame-confirmed), MEDIUM when it merely
+  touched the file, and **skipped entirely** when it is unrelated.
+- **LIKELY_REGRESSION_FIX** — fix/regression language PLUS a strong
+  overlap signal: the message explicitly references an introducing
+  commit, or the commit both removed code (corrective shape) and changed
+  tests.
+- **POSSIBLE_REGRESSION_FIX** — fix language PLUS one weak overlap
+  signal (corrective shape or test changes). LOW confidence — reported
+  transparently, never decisive.
+- **CORRECTIVE_CHANGE** — a `Revert ...` subject *without* a structured
+  trailer, touching the target file. Weakened because without the
+  trailer the revert cannot be linked deterministically to a commit.
+- **NO_REGRESSION_EVIDENCE** — everything else, including fix language
+  with no overlap (the word "fix" alone never establishes a regression)
+  and reverts of unrelated files.
+
+### Overlap: the false-positive guard
+
+A later commit touching the same **file** is weak evidence; the same
+**symbol** is stronger. When the target resolves to a Python symbol, the
+tool verifies (via the Phase 2C AST machinery, in the commit's parent
+coordinate space) that the corrective commit actually changed lines
+inside that symbol. A "fix" to an unrelated symbol in the same file is
+NOT reported as a regression for the target.
+
+### Integration
+
+- **WHY / HISTORY / RISK**: a `Historical regression evidence` section.
+- **--commit**: the after-scan classifies later reverts/fixes of the
+  analyzed commit; a revert commit itself is classified per change
+  (DIRECT_RANGE_OVERLAP when the reverted commit is blamed as the origin
+  of the previous behavior).
+- **--diff**: each changed region flows through the same engine, so the
+  current change's regression history surfaces automatically.
+- Movement-aware: the fix sequence follows code across renames (Phase 2D
+  identity), so a fix AFTER a move is still attributed to the ORIGINAL
+  introducer, never the mover.
+
+### JSON
+
+Additive field `regressions` on `AnalysisResult` and on each
+`CommitChange` (and inside `CommitChange.after`): a list of
+`{type, confidence, relationship, original_commit, fix_commit,
+reverted_commit, target_path, target_symbol, signals, explanation}`.
+Every pre-existing schema key is unchanged.
+
+### Evidence weights (heuristics, not probabilities)
+
+`explicit_revert` −0.25 (counter), `regression_fix` +0.15,
+`possible_regression_fix` +0.05, `corrective_change` −0.10. All
+documented as heuristics in ranking.py; regression evidence strengthens
+risk the same way the existing revert/fix signals do.
+
+### Known limitations (documented, not hidden)
+
+- **Shallow clones**: truncated history may hide regression patterns; the
+  tool reports `LIMITED HISTORY` instead of concluding "no regressions".
+- **Message language is evidence, not proof**: a commit that says "fix"
+  but only renames a variable produces no finding unless a verified
+  overlap exists.
+- **Symbol overlap is Python-only** (Phase 2C scope); for other
+  languages only file-level and test-evidence signals apply.
+
+---
+
 ## How it works
 
 The pipeline (every stage is independently testable):

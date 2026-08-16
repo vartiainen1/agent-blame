@@ -44,6 +44,15 @@ WEIGHTS: Dict[str, float] = {
     # itself decide confidence or risk.
     "code_movement": 0.10,     # code moved here from another path
 
+    # Regression detection (Phase 2E). A structured revert is counter-
+    # evidence (the story is murky); a fix pattern with overlap is
+    # supporting (the behavior has a corrective history). All documented
+    # heuristics - correlation is never presented as causation.
+    "explicit_revert": -0.25,   # structured "This reverts commit <sha>"
+    "regression_fix": 0.15,     # fix language + strong overlap (LIKELY)
+    "possible_regression_fix": 0.05,  # fix language + weak overlap
+    "corrective_change": -0.10, # revert subject without a trailer
+
     # Medium: same-file relationships.
     "same_file": 0.10,
 
