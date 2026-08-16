@@ -350,6 +350,75 @@ are unaffected.
 
 ---
 
+## Caller / symbol analysis
+
+Every mode (WHY, RISK, `--diff`, `--commit`) now answers one more question
+about the code you are looking at: **who calls it?** When the analyzed
+lines sit inside a Python function/method/class, `agent-blame` finds the
+symbol, scans the repository at the **analyzed revision** for references,
+and classifies every relationship. There is no `--callers` mode — callers
+are contextual evidence inside every existing mode.
+
+```text
+Source file
+  → language detector (Python via stdlib AST — parsed, never executed)
+  → symbol extraction (functions/methods/classes, qualified names)
+  → reference/caller search (imports + call sites, AST-level)
+  → caller evidence → existing ranking → confidence → risk
+```
+
+### Relationship types (explicit, conservative)
+
+| Relationship | Meaning | Evidence weight |
+|--------------|---------|-----------------|
+| `DIRECT_CALL` | bare/aliased call resolved via same-module scope or a resolved from-import | strong (`live_caller` +0.20) |
+| `ATTRIBUTE_CALL` | `module.func()` / `Class.method()` where the receiver resolves to the target's module | strong (`live_caller` +0.20) |
+| `IMPORT_REFERENCE` | the target symbol or module is imported | weak (+0.10) |
+| `POSSIBLE_CALL` | name matches but resolution is ambiguous (no import, star import, unknown receiver type) | very weak (+0.05) |
+| `TEXTUAL_MATCH` | the name appears as text only (strings/comments/unrelated identifiers) | **zero** — reported for transparency, never scored |
+| `UNRESOLVED` | dynamic patterns (`getattr`/`eval`/reflection) | **zero** — never scored |
+
+**Trustworthiness is the goal**: a confirmed caller always outweighs any
+number of textual matches, and a weak match is never presented as a
+confirmed caller. Comment/string `authenticate()` and `authenticate_other`
+are never callers; a module that imports `authenticate` from `mod_a` is
+never credited as a caller of `mod_b`'s `authenticate`; a file that
+defines its own `load()` is never credited as calling `check_errors.load()`.
+
+### Live / deleted / modified callers
+
+A caller is **LIVE** only when the reference exists at the analyzed
+revision (historical code never inherits callers that did not exist yet).
+In `--diff`/`--commit`, callers in files that the change deletes or
+modifies are marked **DELETED** / **MODIFIED** — the status is
+revision-honest, never blindly live.
+
+### What it never claims
+
+- **"unused"** — the tool says "No confirmed callers found". Reflection,
+  dynamic imports, plugin loading, CLI entry points and framework
+  registration can all use a symbol without static analysis seeing it.
+- **"safe" / "unsafe"** — risk reasons report counts ("2 confirmed live
+  caller(s) depend on this code") and never absolute safety claims.
+
+### Symbol identity
+
+Symbols carry a stable identity: repository-relative path + **qualified**
+name + kind + source range (`src/auth.py:Server.handle`). Bare display
+names are never used as identities, so two modules with the same function
+name cannot collide.
+
+### JSON
+
+`AnalysisResult` gains two additive fields: `symbol` (the resolved target
+symbol dict, or `null`) and `callers[]` — one entry per caller with
+`symbol`, `path`, `name`, `line`, `call_sites`, `relationship`, `status`,
+`confidence` and `text`. TEXTUAL_MATCH / UNRESOLVED findings appear as
+aggregated single entries with a count. Existing schema keys are
+unchanged.
+
+---
+
 ## How it works
 
 The pipeline (every stage is independently testable):
@@ -428,11 +497,19 @@ Every evidence kind carries a documented weight (see `agent_blame/ranking.py`):
 | `test` / `same_commit_test` (tests with the code or covering the module) | +0.20 |
 | `modified_by` (later modification) | +0.18 |
 | `fix_related` (commit message references fix/regression — weak) | +0.15 |
+| `live_caller` (AST-confirmed direct/attribute caller) | +0.20 |
+| `import_reference` (module/symbol imported elsewhere) | +0.10 |
+| `possible_caller` (name matches, resolution ambiguous) | +0.05 |
 | `same_file` | +0.10 |
 | `temporal` | +0.03 |
 | `deleted_lines` (later removal — counter) | −0.15 |
 | `replacement` (superseding implementation — counter) | −0.20 |
 | `revert` (explicit revert — counter) | −0.25 |
+
+A caller that lives in a **test file** is real evidence but weaker: its
+`live_caller` weight drops to +0.10 (tests exercise the code, but a test
+is not a production dependency). Caller weights are heuristics, documented
+in `agent_blame/ranking.py` — never a claim of statistical probability.
 
 With `--verbose`, each evidence item prints its weight and reasons, so the
 final score is fully explainable and auditable.
@@ -529,6 +606,15 @@ and trustworthy.
   limited to commits reachable from HEAD that are not ancestors of the
   analyzed commit; on an unmerged branch this reflects HEAD's view of
   "after".
+- **Caller analysis is Python-only and conservative by design.** Other
+  languages produce no symbol analysis (honest absence, never a regex
+  guess presented as AST-level truth). Python is statically typed only in
+  the import graph: `obj.method()` receivers are POSSIBLE, dynamic
+  patterns (`getattr`, `eval`, decorators that register functions, plugin
+  loading, monkey patching) are UNRESOLVED and never scored. Local
+  shadowing via assignment can fool same-module attribution (documented
+  limitation). The source index is fetched once per revision (2 git
+  calls) and capped at 20 000 Python files.
 - Message-text signals (fix/regression/security word matches) are **weak**
   signals by design and never decisive on their own.
 - The tool does **not** perform formal static analysis; it is a historical
@@ -548,6 +634,7 @@ python -m unittest tests.test_analyzer -v
 python -m unittest tests.test_cli -v
 python -m unittest tests.test_diff -v
 python -m unittest tests.test_commit -v
+python -m unittest tests.test_callers -v
 python -m unittest tests.test_perf -v
 ```
 
@@ -565,6 +652,7 @@ agent_blame/
   analyzer.py      pipeline orchestration (+ AnalysisMemo for multi-target runs)
   diff.py          --diff mode: diff parsing, grouping, noise control
   commit.py        --commit mode: revision-aware baseline + before/after chronology
+  symbols.py       caller/symbol analysis (Python AST, conservative)
   repository.py    repository discovery
   git.py           safe Git abstraction (no shell, timeouts)
   history.py       blame, commits, diffs (batched metadata + numstat)
@@ -598,11 +686,12 @@ Phase 2B added `--commit` on top of the same single engine (one pipeline,
 many target selectors: `file:line`, `--history`, `--risk`, `--diff`,
 `--commit`).
 
-Phase 2 remaining: stronger revert/rename/code-movement tracking, caller and
-symbol relationships, regression detection, better counter-evidence,
-caching. Phase 3 candidates: merge-aware analysis, richer JSON, optional LLM
-explanation layer that explains the structured findings without inventing
-evidence.
+Phase 2 remaining: code-movement/rename tracking, regression detection,
+better counter-evidence, caching. Phase 3 candidates: merge-aware analysis,
+richer JSON, optional LLM explanation layer that explains the structured
+findings without inventing evidence. Caller/symbol relationships are built
+(Phase 2C): conservative Python AST-based caller discovery feeding the
+same evidence/confidence/risk engine.
 
 ---
 

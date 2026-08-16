@@ -260,7 +260,8 @@ def _hunk_bodies(raw: str) -> Dict[str, Dict[int, str]]:
 def _analyze_region(repo: Repository, memo: AnalysisMemo,
                     path: str, old_path: Optional[str],
                     old_start: int, old_end: int,
-                    revision: str = "HEAD", mode: str = "diff") -> AnalysisResult:
+                    revision: str = "HEAD", mode: str = "diff",
+                    change_map: Optional[dict] = None) -> AnalysisResult:
     """Run the existing pipeline on one changed region.
 
     The target is the OLD side (previous revision) of the change: blame
@@ -268,10 +269,13 @@ def _analyze_region(repo: Repository, memo: AnalysisMemo,
     modified or deleted. `old_path` is the path the file had at that
     revision when it was renamed (blame must run against the old name).
     Diff mode blames HEAD; commit mode passes the target commit's parent.
+    `change_map` ({path: status}) lets caller analysis mark callers that
+    this change deletes/modifies.
     """
     head_path = old_path or path
     target = Target(file=head_path, start_line=old_start, end_line=old_end)
-    return analyze(repo, target, mode=mode, memo=memo, revision=revision)
+    return analyze(repo, target, mode=mode, memo=memo, revision=revision,
+                   change_map=change_map)
 
 
 def analyze_diff(repo: Repository, staged: bool = False,
@@ -317,6 +321,8 @@ def analyze_diff(repo: Repository, staged: bool = False,
                                   "a future diff"]).to_dict(),
                 )],
             ))
+
+    change_map = {m["path"]: m["status"] for m in file_meta}
 
     for meta in file_meta:
         status = meta["status"]
@@ -425,7 +431,8 @@ def analyze_diff(repo: Repository, staged: bool = False,
 
             try:
                 aresult = _analyze_region(repo, memo, path, old_path,
-                                          old_start, old_end)
+                                          old_start, old_end,
+                                          change_map=change_map)
             except GitError as e:
                 warnings.append(f"could not analyze {path}:{old_start}-{old_end}: {str(e)}")
                 continue

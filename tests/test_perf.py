@@ -113,6 +113,68 @@ class TestCommitGitCallBound(unittest.TestCase):
             fx.cleanup()
 
 
+class TestCallerGitCallBound(unittest.TestCase):
+    """Caller analysis must not multiply git calls with repository size.
+
+    A ~120-file repository is analyzed with exactly TWO extra git calls
+    (ls-tree + one cat-file batch) for the whole-repo source index; the
+    per-target pipeline adds its usual bounded calls. If a per-file git
+    call were introduced, this bound would fail loudly.
+    """
+
+    def test_large_repo_bounded(self):
+        from agent_blame.analyzer import analyze
+        from agent_blame.models import Target
+        from tests.gitfixture import make_caller_large_fixture
+        fx = make_caller_large_fixture(n_files=120)
+        try:
+            counter = _CountingGit()
+            counter.install()
+            try:
+                repo = discover_repository(fx.root)
+                self.assertIsNotNone(repo)
+                res = analyze(repo, Target(file="src/auth.py", start_line=1,
+                                           end_line=1))
+            finally:
+                counter.restore()
+            # The caller must be found despite the large repo.
+            self.assertTrue(any("use_auth.py" in c["symbol"]
+                                for c in res.callers))
+            self.assertLessEqual(
+                counter.count, 25,
+                f"{counter.count} git calls for a 120-file repo - the "
+                f"repo scan must stay at 2 calls (ls-tree + cat-file batch)")
+        finally:
+            fx.cleanup()
+
+    def test_index_fetched_once_per_revision(self):
+        """Two analyses in one run share the source index (no re-scan)."""
+        from agent_blame.analyzer import AnalysisMemo, analyze
+        from agent_blame.models import Target
+        from tests.gitfixture import make_caller_simple_fixture
+        fx = make_caller_simple_fixture()
+        try:
+            repo = discover_repository(fx.root)
+            memo = AnalysisMemo()
+            counter = _CountingGit()
+            counter.install()
+            try:
+                analyze(repo, Target(file="src/auth.py", start_line=1, end_line=1),
+                        memo=memo)
+                first = counter.count
+                analyze(repo, Target(file="src/server.py", start_line=3, end_line=3),
+                        memo=memo)
+                second = counter.count
+            finally:
+                counter.restore()
+            # The second analysis must not re-run ls-tree / cat-file.
+            self.assertLess(second - first, 8,
+                            f"second analysis made {second - first} git calls; "
+                            f"the source index should be reused")
+        finally:
+            fx.cleanup()
+
+
 class TestMemoReuse(unittest.TestCase):
     """Shared AnalysisMemo must prevent duplicate file-history fetches."""
 

@@ -31,6 +31,13 @@ WEIGHTS: Dict[str, float] = {
     "modified_by": 0.18,       # later commit modified the target file
     "related_fix": 0.15,       # commit message references fix/regression (weak)
 
+    # Caller relationships (Phase 2C). AST-confirmed direct callers are
+    # strong evidence the symbol is depended upon; a caller that lives in a
+    # test file is weaker (see symbols.py). Possible callers are weak.
+    "live_caller": 0.20,       # AST-confirmed DIRECT_CALL / ATTRIBUTE_CALL
+    "import_reference": 0.10,  # module/symbol imported elsewhere
+    "possible_caller": 0.05,   # name matches but resolution is ambiguous
+
     # Medium: same-file relationships.
     "same_file": 0.10,
 

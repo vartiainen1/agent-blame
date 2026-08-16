@@ -72,6 +72,11 @@ def analyze_risk(evidence: List[EvidenceItem], has_history: bool) -> Risk:
         mods = [e for e in evidence if e.kind == "modified_by"]
         if len(mods) >= 3:
             high_reasons.append(f"frequently modified ({len(mods)} later modifications)")
+    if "live_caller" in kinds:
+        callers = [e for e in evidence if e.kind == "live_caller"]
+        high_reasons.append(
+            f"{len(callers)} confirmed live caller(s) depend on this code"
+        )
 
     if "replacement" in kinds:
         low_reasons.append("replacement/superseding implementation detected")

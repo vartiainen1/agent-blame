@@ -739,3 +739,281 @@ def make_commit_malicious_fixture() -> GitFixture:
     b = f.commit(evil, {"src/mod.py": "m = 2\n"})
     f.shas = {"A": a, "B": b}
     return f
+
+
+# ---------------------------------------------------------------------------
+# Phase 2C: caller/symbol fixtures. Each has a KNOWN structure so tests can
+# assert exact relationship classifications (DIRECT_CALL vs POSSIBLE_CALL vs
+# TEXTUAL_MATCH) - the false-positive guarantees are the point of this phase.
+# ---------------------------------------------------------------------------
+
+def _caller_auth() -> dict:
+    """The canonical target module used by most caller fixtures."""
+    return {"src/auth.py": "def authenticate():\n    return True\n"}
+
+
+def _caller_server() -> dict:
+    """A file that imports and calls authenticate() from auth."""
+    return {
+        "src/server.py": (
+            "from auth import authenticate\n"
+            "\n"
+            "def handle_request():\n"
+            "    authenticate()\n"
+        ),
+    }
+
+
+def make_caller_simple_fixture() -> GitFixture:
+    """1. Simple direct caller: handle_request -> authenticate()."""
+    f = GitFixture()
+    a = f.commit("Add auth module", _caller_auth())
+    b = f.commit("Add request handler", _caller_server())
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_caller_multiple_fixture() -> GitFixture:
+    """2. Multiple callers across two files."""
+    f = GitFixture()
+    a = f.commit("Add auth module", _caller_auth())
+    b = f.commit("Add handlers", {
+        ** _caller_server(),
+        "src/worker.py": (
+            "from auth import authenticate\n"
+            "\n"
+            "def run_job():\n"
+            "    authenticate()\n"
+        ),
+    })
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_caller_method_fixture() -> GitFixture:
+    """3+4. Method target: instance call (POSSIBLE) + class call (DIRECT)."""
+    f = GitFixture()
+    f.commit("Add auth class", {
+        "src/auth.py": (
+            "class Auth:\n"
+            "    def check(self):\n"
+            "        return True\n"
+        ),
+        "src/server.py": (
+            "from auth import Auth\n"
+            "\n"
+            "def handle():\n"
+            "    a = Auth()\n"
+            "    a.check()\n"
+            "    return Auth.check(a)\n"
+        ),
+    })
+    return f
+
+
+def make_caller_aliased_fixture() -> GitFixture:
+    """6. Aliased import: `from auth import authenticate as auth_fn`."""
+    f = GitFixture()
+    f.commit("Add auth", {
+        ** _caller_auth(),
+        "src/a1.py": (
+            "from auth import authenticate as auth_fn\n"
+            "\n"
+            "def go():\n"
+            "    auth_fn()\n"
+        ),
+    })
+    return f
+
+
+def make_caller_attribute_fixture() -> GitFixture:
+    """7. Attribute call: `import auth; auth.authenticate()`."""
+    f = GitFixture()
+    f.commit("Add auth", {
+        ** _caller_auth(),
+        "src/a2.py": (
+            "import auth\n"
+            "\n"
+            "def go():\n"
+            "    auth.authenticate()\n"
+        ),
+    })
+    return f
+
+
+def make_caller_nested_fixture() -> GitFixture:
+    """8. Nested function: outer() calls inner()."""
+    f = GitFixture()
+    f.commit("Add nested", {
+        "src/nest.py": (
+            "def outer():\n"
+            "    def inner():\n"
+            "        return 1\n"
+            "    return inner()\n"
+        ),
+    })
+    return f
+
+
+def make_caller_deleted_fixture() -> GitFixture:
+    """9. Deleted caller: a commit removes the caller file."""
+    f = GitFixture()
+    a = f.commit("Add auth module", _caller_auth())
+    b = f.commit("Add request handler", _caller_server())
+    c = f.rm("src/server.py", "Remove request handler")
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_caller_history_fixture() -> GitFixture:
+    """10. Caller introduced later: caller exists only after commit B."""
+    f = GitFixture()
+    a = f.commit("Add auth module", _caller_auth())
+    b = f.commit("Add request handler", _caller_server())
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_caller_removed_fixture() -> GitFixture:
+    """11. Caller removed later: commit C drops the call from server.py."""
+    f = GitFixture()
+    a = f.commit("Add auth module", _caller_auth())
+    b = f.commit("Add request handler", _caller_server())
+    c = f.commit("Drop auth usage", {
+        "src/server.py": (
+            "def handle_request():\n"
+            "    return None\n"
+        ),
+    })
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_caller_none_fixture() -> GitFixture:
+    """12. No callers: the symbol is referenced nowhere."""
+    f = GitFixture()
+    f.commit("Add auth module", _caller_auth())
+    return f
+
+
+def make_caller_ambiguous_fixture() -> GitFixture:
+    """13. Ambiguous caller: bare name call with NO import - must NOT be
+    claimed as a confirmed caller (POSSIBLE_CALL at most)."""
+    f = GitFixture()
+    f.commit("Add auth", {
+        ** _caller_auth(),
+        "src/worker.py": (
+            "def run():\n"
+            "    authenticate()\n"
+        ),
+    })
+    return f
+
+
+def make_caller_same_name_fixture() -> GitFixture:
+    """14+17. Same symbol name in two modules: only the matching module's
+    import/usage may be credited as a caller of each."""
+    f = GitFixture()
+    f.commit("Add modules", {
+        "src/mod_a.py": "def authenticate():\n    return 1\n",
+        "src/mod_b.py": "def authenticate():\n    return 2\n",
+        "src/use_a.py": (
+            "from mod_a import authenticate\n"
+            "\n"
+            "def go():\n"
+            "    authenticate()\n"
+        ),
+    })
+    return f
+
+
+def make_caller_false_positive_fixture() -> GitFixture:
+    """15. Comment/string false positives: `text = "authenticate()"`,
+    `# authenticate()`, and `def authenticate_other` must NOT be callers."""
+    f = GitFixture()
+    f.commit("Add auth", {
+        ** _caller_auth(),
+        "src/tricks.py": (
+            'text = "authenticate()"\n'
+            "# authenticate()\n"
+            "def authenticate_other():\n"
+            "    return 1\n"
+        ),
+    })
+    return f
+
+
+def make_caller_unicode_fixture() -> GitFixture:
+    """16. Unicode path: caller in a Unicode-named directory."""
+    f = GitFixture()
+    f.commit("Add auth", {
+        ** _caller_auth(),
+        "src/ünïcode/handler.py": (
+            "from auth import authenticate\n"
+            "\n"
+            "def go():\n"
+            "    authenticate()\n"
+        ),
+    })
+    return f
+
+
+def make_caller_unsupported_fixture() -> GitFixture:
+    """17. Unsupported language: no symbol analysis, honest absence."""
+    f = GitFixture()
+    f.commit("Add js", {
+        "src/app.js": "function authenticate() { return 1; }\n",
+        "src/main.js": "authenticate();\n",
+    })
+    return f
+
+
+def make_caller_malicious_fixture() -> GitFixture:
+    """21. Malicious source content (ANSI in strings) + a real caller."""
+    f = GitFixture()
+    f.commit("Add auth", {
+        "src/auth.py": "def authenticate():\n    return '\x1b[2J\x1b[H evil'\n",
+        "src/caller.py": (
+            "from auth import authenticate\n"
+            "\n"
+            "def go():\n"
+            "    authenticate()\n"
+        ),
+    })
+    return f
+
+
+def make_caller_large_fixture(n_files: int = 120) -> GitFixture:
+    """22. Large repository: N python files, ONE real caller."""
+    f = GitFixture()
+    files = {"src/auth.py": "def authenticate():\n    return True\n"}
+    for i in range(n_files):
+        files[f"src/mod_{i:03d}.py"] = f"def fn_{i}():\n    return {i}\n"
+    files["src/use_auth.py"] = (
+        "from auth import authenticate\n"
+        "\n"
+        "def go():\n"
+        "    authenticate()\n"
+    )
+    f.commit("Add many modules", files)
+    return f
+
+
+def make_caller_diff_fixture() -> GitFixture:
+    """19. --diff integration: the worktree modifies authenticate()."""
+    f = make_caller_simple_fixture()
+    f.write("src/auth.py", "def authenticate(force=False):\n    return True\n")
+    return f
+
+
+def make_caller_modify_commit_fixture() -> GitFixture:
+    """20. --commit integration: commit C modifies authenticate(); its
+    before-state analysis must still find the LIVE caller from B."""
+    f = GitFixture()
+    a = f.commit("Add auth module", _caller_auth())
+    b = f.commit("Add request handler", _caller_server())
+    c = f.commit("Add force flag", {
+        "src/auth.py": "def authenticate(force=False):\n    return True\n",
+    })
+    f.shas = {"A": a, "B": b, "C": c}
+    return f

@@ -127,6 +127,15 @@ def render_terminal(result: AnalysisResult, verbose: bool = False) -> str:
             out.append(f"  ✗ {sanitize(e['text'])}")
         out.append("")
 
+    # --- Callers (Phase 2C) --------------------------------------------
+    if result.symbol is not None:
+        out.append(_b("Callers"))
+        if result.callers:
+            _render_callers(out, result.callers, verbose, indent="  ")
+        else:
+            out.append("  No confirmed callers found.")
+        out.append("")
+
     # --- Historical chain -----------------------------------------------
     if result.history:
         out.append(_b("Historical chain"))
@@ -269,6 +278,14 @@ def render_diff_terminal(result: DiffResult, verbose: bool = False) -> str:
             else:
                 out.append("    None found.")
             out.append("")
+
+            if a.get("symbol") is not None:
+                out.append(_b("  Callers"))
+                if a.get("callers"):
+                    _render_callers(out, a["callers"], verbose, indent="    ")
+                else:
+                    out.append("    No confirmed callers found.")
+                out.append("")
 
             out.append(_kv("Historical change risk", risk.get("level", "UNKNOWN")))
             for r in risk.get("reasons", []):
@@ -470,6 +487,14 @@ def render_commit_terminal(result: CommitResult, verbose: bool = False) -> str:
                 out.append("    None found.")
             out.append("")
 
+            if a.get("symbol") is not None:
+                out.append(_b("  Callers"))
+                if a.get("callers"):
+                    _render_callers(out, a["callers"], verbose, indent="    ")
+                else:
+                    out.append("    No confirmed callers found.")
+                out.append("")
+
             out.append(_kv("Historical change risk", risk.get("level", "UNKNOWN")))
             for r in risk.get("reasons", []):
                 out.append(f"      - {sanitize(r)}")
@@ -505,6 +530,37 @@ def render_commit_terminal(result: CommitResult, verbose: bool = False) -> str:
     out.append("Note: this is historical evidence, not a safety guarantee. "
                "The developer makes the final decision.")
     return "\n".join(out) + "\n"
+
+
+def _render_callers(out: list, callers: list, verbose: bool,
+                    indent: str = "  ") -> None:
+    """Render caller entries, capped for the terminal (JSON keeps all).
+
+    Resolved callers (DIRECT/ATTRIBUTE/IMPORT/POSSIBLE) are shown one per
+    line with relationship + status + confidence; the aggregated
+    TEXTUAL_MATCH / UNRESOLVED entries are shown as single informational
+    lines (zero evidence weight - they never affect the score).
+    """
+    detailed = [c for c in callers
+                if c["relationship"] in ("DIRECT_CALL", "ATTRIBUTE_CALL",
+                                          "IMPORT_REFERENCE", "POSSIBLE_CALL")]
+    info = [c for c in callers
+            if c["relationship"] in ("TEXTUAL_MATCH", "UNRESOLVED")]
+
+    for c in detailed[:10]:
+        mark = "✓" if c["status"] == "LIVE" else "✗"
+        out.append(f"{indent}{mark} {sanitize(c['symbol'])}  "
+                   f"{c['relationship']}  {c['status']}  "
+                   f"(confidence {c['confidence']})")
+        if verbose and c.get("call_sites", 1) > 1:
+            out.append(f"{indent}    {c['call_sites']} call site(s)")
+    if len(detailed) > 10:
+        out.append(f"{indent}... {len(detailed) - 10} more caller(s) "
+                   f"(use --json for the full list)")
+    if not detailed and not info:
+        out.append(f"{indent}No confirmed callers found.")
+    for c in info:
+        out.append(f"{indent}! {sanitize(c['text'])}")
 
 
 def render_json(result) -> str:

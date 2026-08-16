@@ -255,6 +255,7 @@ def analyze_commit(repo: Repository, rev: str,
 
     tests_added = sorted(m["path"] for m in file_meta
                          if _is_test_path(m["path"]))
+    change_map = {m["path"]: m["status"] for m in file_meta}
 
     for meta in file_meta:
         status = meta["status"]
@@ -290,7 +291,8 @@ def analyze_commit(repo: Repository, rev: str,
                     try:
                         aresult = _analyze_region(repo, memo, path, old_path,
                                                   1, n, revision=baseline,
-                                                  mode="commit")
+                                                  mode="commit",
+                                                  change_map=change_map)
                     except GitError as e:
                         warnings.append(f"could not analyze {path}: {e}")
                         aresult = None
@@ -362,7 +364,8 @@ def analyze_commit(repo: Repository, rev: str,
             try:
                 aresult = _analyze_region(repo, memo, path, old_path,
                                           old_start, old_end,
-                                          revision=baseline, mode="commit")
+                                          revision=baseline, mode="commit",
+                                          change_map=change_map)
             except GitError as e:
                 warnings.append(f"could not analyze {path}:{old_start}-"
                                 f"{old_end}: {e}")

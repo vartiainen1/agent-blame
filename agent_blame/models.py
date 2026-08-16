@@ -162,6 +162,75 @@ class Risk:
 
 
 # ---------------------------------------------------------------------------
+# Symbol / caller relationships (Phase 2C)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class Symbol:
+    """A definition (function/method/class) in a source file.
+
+    `name` is the QUALIFIED name (e.g. "retry", "Server.handle",
+    "outer.inner") so two files can never collide on a bare display name.
+    The stable identity is `path:name` plus the source range.
+    """
+
+    path: str                       # repo-relative, forward slashes
+    name: str                       # qualified symbol name
+    kind: str                       # "function" | "method" | "class" | "module"
+    start_line: int                 # 1-based inclusive
+    end_line: int                   # 1-based inclusive
+    parent: Optional[str] = None    # qualified name of the enclosing symbol
+
+    def qualname(self) -> str:
+        return f"{self.path}:{self.name}"
+
+    def to_dict(self) -> dict:
+        return {
+            "path": self.path,
+            "name": self.name,
+            "kind": self.kind,
+            "start_line": self.start_line,
+            "end_line": self.end_line,
+        }
+
+
+@dataclass(frozen=True)
+class CallerRef:
+    """One caller relationship found for a target symbol.
+
+    `relationship` is the classification (DIRECT_CALL / ATTRIBUTE_CALL /
+    IMPORT_REFERENCE / POSSIBLE_CALL / TEXTUAL_MATCH / UNRESOLVED). Only
+    the strongest categories ever affect confidence or risk; TEXTUAL_MATCH
+    and UNRESOLVED are reported for transparency with zero evidence weight.
+    `status` reflects the analyzed revision: LIVE, or DELETED/MODIFIED by
+    the analyzed change (diff/commit mode).
+    """
+
+    symbol: str                     # caller identity "path:qualname"
+    path: str                       # caller file path
+    name: str                       # caller symbol name (unqualified)
+    line: int                       # first call-site line
+    call_sites: int = 1             # number of call sites in the caller
+    relationship: str = "UNRESOLVED"
+    status: str = "LIVE"
+    confidence: str = "LOW"
+    text: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "symbol": self.symbol,
+            "path": self.path,
+            "name": self.name,
+            "line": self.line,
+            "call_sites": self.call_sites,
+            "relationship": self.relationship,
+            "status": self.status,
+            "confidence": self.confidence,
+            "text": self.text,
+        }
+
+
+# ---------------------------------------------------------------------------
 # Diff mode (--diff)
 # ---------------------------------------------------------------------------
 
@@ -336,6 +405,8 @@ class AnalysisResult:
     inferences: List[dict] = field(default_factory=list)
     evidence: List[dict] = field(default_factory=list)
     counter_evidence: List[dict] = field(default_factory=list)
+    callers: List[dict] = field(default_factory=list)   # CallerRef dicts
+    symbol: Optional[dict] = None      # resolved target Symbol dict, or None
     history: List[dict] = field(default_factory=list)
     risk: Risk = field(default_factory=lambda: Risk("UNKNOWN", []))
     warnings: List[str] = field(default_factory=list)
@@ -352,6 +423,8 @@ class AnalysisResult:
             "inferences": self.inferences,
             "evidence": self.evidence,
             "counter_evidence": self.counter_evidence,
+            "callers": self.callers,
+            "symbol": self.symbol,
             "history": self.history,
             "risk": self.risk.to_dict(),
             "warnings": self.warnings,

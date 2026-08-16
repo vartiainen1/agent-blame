@@ -93,6 +93,38 @@ def git_lines(args: List[str], cwd: Optional[str] = None,
     return out.splitlines()
 
 
+def git_bytes(args: List[str], input_bytes: Optional[bytes] = None,
+              cwd: Optional[str] = None,
+              timeout: int = DEFAULT_TIMEOUT) -> bytes:
+    """Run git with stdin payload, return stdout as BYTES (raising on failure).
+
+    Used for bulk reads like `git cat-file --batch`, where a persistent
+    stream of requests is cheaper than one subprocess per object. The
+    payload is bytes, never shell text - no interpolation of repository
+    content.
+    """
+    if not args or args[0] != "git":
+        args = ["git", *args]
+    try:
+        proc = subprocess.run(
+            args, cwd=cwd, input=input_bytes, capture_output=True,
+            timeout=timeout, check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise GitError(
+            f"git command timed out after {timeout}s: {' '.join(args)}",
+            args=args,
+        )
+    if proc.returncode != 0:
+        raise GitError(
+            f"git command failed: {' '.join(args)}",
+            args=args,
+            exit_code=proc.returncode,
+            stderr=proc.stderr.decode("utf-8", errors="replace"),
+        )
+    return proc.stdout
+
+
 def try_git_output(args: List[str], cwd: Optional[str] = None,
                    timeout: int = DEFAULT_TIMEOUT) -> Optional[str]:
     """Run git, returning None on failure instead of raising.

@@ -42,6 +42,10 @@ class AnalysisMemo:
         self._stats: dict = {}        # (file, revision) -> {sha: (added, removed)}
         self.commit_map: dict = {}    # sha -> CommitInfo (all fetched so far)
         self.diff_memo: dict = {}     # (sha, file) -> CommitDiff
+        # Symbol/caller caches (Phase 2C) - one repo scan per revision.
+        self._py_sources: dict = {}   # revision -> {path: content}
+        self._asts: dict = {}         # (revision, path) -> ast.Module | None
+        self._symbols: dict = {}      # (revision, path) -> List[Symbol]
 
     def file_commits(self, repo: Repository, file: str, revision: str = "HEAD"):
         """Commits touching `file` before `revision`, fetched once per key."""
@@ -60,10 +64,43 @@ class AnalysisMemo:
             self._stats[key] = file_diff_stats(repo, file, revision=revision)
         return self._stats[key]
 
+    # -- symbol/caller caches (Phase 2C) --------------------------------
+
+    def py_sources(self, repo: Repository, revision: str = "HEAD"):
+        """All Python source at `revision`, fetched ONCE per revision.
+
+        Two git calls total per revision (ls-tree + one cat-file batch),
+        so N analyzed targets never multiply the repository scan.
+        """
+        if revision not in self._py_sources:
+            from .symbols import load_py_sources  # lazy: avoids import cycle
+            self._py_sources[revision] = load_py_sources(repo, revision)
+        return self._py_sources[revision]
+
+    def file_ast(self, revision: str, path: str, content: str):
+        """Parsed AST for one file at one revision (cached, parse-only)."""
+        key = (revision, path)
+        if key not in self._asts:
+            import ast as _ast
+            try:
+                self._asts[key] = _ast.parse(content)
+            except (SyntaxError, ValueError):
+                self._asts[key] = None
+        return self._asts[key]
+
+    def file_symbols(self, revision: str, path: str, content: str):
+        """Extracted symbols for one file at one revision (cached)."""
+        key = (revision, path)
+        if key not in self._symbols:
+            from .symbols import extract_symbols  # lazy: avoids import cycle
+            self._symbols[key] = extract_symbols(content, path)
+        return self._symbols[key]
+
 
 def analyze(repo: Repository, target: Target, mode: str = "why",
             memo: AnalysisMemo = None,
-            revision: str = "HEAD") -> AnalysisResult:
+            revision: str = "HEAD",
+            change_map: dict = None) -> AnalysisResult:
     """Run the full pipeline for one target.
 
     Handles the known edge cases:
@@ -82,6 +119,10 @@ def analyze(repo: Repository, target: Target, mode: str = "why",
     the target commit's parent so the analysis describes the state BEFORE
     the commit; the commit itself can then never be mis-attributed as the
     introducer of the behavior it changes (chronology correctness).
+
+    `change_map` ({path: status}) marks caller files that the analyzed
+    change deletes/modifies, so caller status is revision-honest
+    (DELETED / MODIFIED) instead of blindly LIVE.
 
     INTEGRITY RULE: line-level evidence (blame, introducing commits, later
     modifications of the TARGET LINES, confidence, risk) is only produced
@@ -167,6 +208,18 @@ def analyze(repo: Repository, target: Target, mode: str = "why",
                                      commit_map=memo.commit_map, diff_memo=memo.diff_memo,
                                      stats=stats)
     all_evidence = dedupe_evidence([*evidence, *counter])
+
+    # --- Caller relationships (Phase 2C, revision-aware) ---------------
+    # Appended AFTER dedupe: each caller is a distinct item and must never
+    # be collapsed on (kind, commit=None). Only resolves when the target
+    # line is inside a Python symbol; TEXTUAL/UNRESOLVED findings stay in
+    # result.callers with zero evidence weight.
+    from .symbols import collect_caller_evidence  # lazy: avoids import cycle
+    caller_ev, caller_refs, target_sym = collect_caller_evidence(
+        repo, target, revision=revision, memo=memo, change_map=change_map)
+    result.callers = [c.to_dict() for c in caller_refs]
+    result.symbol = target_sym.to_dict() if target_sym is not None else None
+    all_evidence = [*all_evidence, *caller_ev]
     ranked = rank_evidence(all_evidence)
 
     for e in ranked:

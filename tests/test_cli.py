@@ -12,7 +12,8 @@ import subprocess
 import sys
 import unittest
 
-from tests.gitfixture import (make_commit_evolution_fixture,
+from tests.gitfixture import (make_caller_simple_fixture,
+                              make_commit_evolution_fixture,
                               make_commit_malicious_fixture,
                               make_diff_modify_fixture, make_evolution_fixture,
                               make_introduction_fixture,
@@ -179,6 +180,39 @@ class TestCliDiff(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertNotIn("Traceback", proc.stderr)
         self.assertIn("--diff", proc.stderr)
+
+
+class TestCliCallers(unittest.TestCase):
+    """Caller relationships surface through the real CLI (WHY + JSON)."""
+
+    def setUp(self):
+        self.fx = make_caller_simple_fixture()
+        self.cwd = self.fx.root
+
+    def tearDown(self):
+        self.fx.cleanup()
+
+    def test_why_output_shows_callers(self):
+        proc = _run_cli(["src/auth.py:1"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("Callers", proc.stdout)
+        self.assertIn("handle_request", proc.stdout)
+        self.assertIn("DIRECT_CALL", proc.stdout)
+        self.assertIn("LIVE", proc.stdout)
+
+    def test_risk_output_shows_callers(self):
+        proc = _run_cli(["--risk", "src/auth.py:1"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("Callers", proc.stdout)
+        self.assertIn("confirmed live caller", proc.stdout)
+
+    def test_json_has_callers_and_symbol(self):
+        proc = _run_cli(["src/auth.py:1", "--json"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = jsonlib.loads(proc.stdout)
+        self.assertEqual(data["symbol"]["name"], "authenticate")
+        self.assertTrue(data["callers"])
+        self.assertEqual(data["callers"][0]["relationship"], "DIRECT_CALL")
 
 
 class TestCliCommit(unittest.TestCase):
