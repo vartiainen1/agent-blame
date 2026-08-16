@@ -252,19 +252,42 @@ been run.
 
 ## 14. Ready-to-run protocol for real developers (5 participants)
 
-1. Give each developer `--help` and one task (A–E from the phase spec) on
-   one repo. Do not explain the internals.
-2. Record: first command, first successful command, time-to-answer, sections
-   read vs skipped, whether they run `git` afterward.
-3. Ask the 15 questions in the phase spec (open-ended; no leading).
-4. For every answer they rely on, have them verify with `git blame`/`git
-   show` and rate their confidence vs ground truth.
-5. Score the product scorecard (usefulness, ease, accuracy, trust,
-   time-saved, explainability, distinctiveness, reuse, recommend) with
-   evidence per score.
+Phase 5 prepared the full executable study package. The protocol is now
+self-contained in `validation/` — a facilitator with no knowledge of the
+internals can run the entire study from it:
+
+| File | Purpose |
+|------|---------|
+| `validation/STUDY_PROTOCOL.md` | master protocol: recruitment, environment setup, session flow, honesty rules, report template |
+| `validation/PARTICIPANT_QUICKSTART.md` | handed to participants; no internals, no expected-output hints |
+| `validation/TASK_SHEET.md` | 5 realistic tasks (WHY, moved code, change review, dependency/risk, commit) |
+| `validation/MEASUREMENT_FORM.md` | per-participant observation + questionnaire + scorecards + 36-section report template |
+| `validation/REFERENCE_TARGETS.md` | facilitator-only ground truth (verified 2026-08-17) with git verification commands |
+
+Summary of the protocol (details in `STUDY_PROTOCOL.md`):
+
+1. Give each developer `PARTICIPANT_QUICKSTART.md` and one task from
+   `TASK_SHEET.md`. Do not explain the internals or which features exist.
+2. Record (per `MEASUREMENT_FORM.md`): first command, first successful
+   command, every command with timestamps, time-to-answer, sections read vs
+   skipped, hesitations, whether they run `git` afterward.
+3. Ask the 16 debrief questions (the 15 from the phase spec plus "what
+   would you have done without agent-blame?").
+4. Trust calibration: for up to 3 conclusions they relied on, ask their
+   confidence, then verify against git using `REFERENCE_TARGETS.md`
+   (verified expected answers on requests/flask/rich). HIGH + wrong is the
+   most serious finding.
+5. Score the product and feature scorecards with evidence per score;
+   classify the product A–E; identify killer/weakest use case and
+   product-market signal from observed behavior.
 6. Report back; this document's findings should be rechecked against real
    behavior — especially the wall-clock trade-off (§4), which real
    developers may weight differently than the effort argument.
+
+**Status: the study is prepared but NOT yet run.** No human participants
+have taken part as of 2026-08-17. The `validation/` package is the
+hand-off for a real facilitator; results must come from real sessions, not
+from this document.
 
 ## 15. Dev errors logged (Freebuff AREA workflow)
 

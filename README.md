@@ -920,6 +920,39 @@ classification effort, not wall-clock speed.
 
 ---
 
+## Phase 5: real-world validation preparation (complete — study not yet run)
+
+Phase 5 froze the feature set and prepared a **real 5-developer validation
+study**. The honest status is unchanged from Phase 4: **real human
+validation remains outstanding** — this environment has no access to
+participants, and no results in this project's records come from real
+people. What Phase 5 delivered is a complete, executable study package in
+`validation/` so a third-party facilitator can run it without knowing the
+internals:
+
+- `validation/STUDY_PROTOCOL.md` — recruitment, environment setup,
+  session flow (30–45 min per participant), honesty rules, report template.
+- `validation/PARTICIPANT_QUICKSTART.md` — participant-facing; no
+  internals and no hints about which features are expected to be useful.
+- `validation/TASK_SHEET.md` — five realistic tasks: understand code
+  history, moved code, change review (your own diff), dependency/risk
+  before modifying, commit investigation.
+- `validation/MEASUREMENT_FORM.md` — per-participant observation form,
+  verbatim questionnaire (16 questions incl. "what would you have done
+  without agent-blame?"), trust-calibration table, evidence-based
+  scorecards, 36-section report template.
+- `validation/REFERENCE_TARGETS.md` — facilitator-only ground truth,
+  verified 2026-08-17 against requests/flask/rich `main`, with exact git
+  verification commands for trust calibration.
+
+The quick-start path was verified end-to-end (fresh venv, `pip install -e
+.`, `agent-blame` runs from any cwd inside a repo), and all six reference
+targets reproduce their documented answers. The MVP classification remains
+**USEFUL MVP (C)**; the final classification after a real study may move it
+in either direction.
+
+---
+
 ## Roadmap (not yet built)
 
 Completed: `--diff` (2A), `--commit` (2B), caller/symbol relationships
