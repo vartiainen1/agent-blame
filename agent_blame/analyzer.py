@@ -46,6 +46,10 @@ class AnalysisMemo:
         self._py_sources: dict = {}   # revision -> {path: content}
         self._asts: dict = {}         # (revision, path) -> ast.Module | None
         self._symbols: dict = {}      # (revision, path) -> List[Symbol]
+        # Movement caches (Phase 2D) - path-restricted, memoized.
+        self._py_sources_limited: dict = {}   # (revision, paths) -> {path: str}
+        self._worktree: dict = {}             # paths -> {path: str}
+        self._index: dict = {}                # paths -> {path: str}
 
     def file_commits(self, repo: Repository, file: str, revision: str = "HEAD"):
         """Commits touching `file` before `revision`, fetched once per key."""
@@ -76,6 +80,37 @@ class AnalysisMemo:
             from .symbols import load_py_sources  # lazy: avoids import cycle
             self._py_sources[revision] = load_py_sources(repo, revision)
         return self._py_sources[revision]
+
+    def py_sources_limited(self, repo: Repository, revision: str,
+                           paths):
+        """Python source for a SUBSET of paths at `revision`, cached.
+
+        Movement analysis only needs the changed paths (a move's source
+        and destination are both in the change by definition), so the
+        scan is proportional to the change size, not the repository.
+        """
+        key = (revision, tuple(sorted(paths)))
+        if key not in self._py_sources_limited:
+            from .symbols import load_py_sources  # lazy: avoids import cycle
+            self._py_sources_limited[key] = load_py_sources(
+                repo, revision, paths=list(paths))
+        return self._py_sources_limited[key]
+
+    def worktree_sources(self, root: str, paths):
+        """Working-tree content for `paths` (unstaged diff "after" side)."""
+        key = tuple(sorted(paths))
+        if key not in self._worktree:
+            from .symbols import worktree_sources
+            self._worktree[key] = worktree_sources(list(paths), root)
+        return self._worktree[key]
+
+    def index_sources(self, repo: Repository, paths):
+        """Index (staged) content for `paths` (staged diff "after" side)."""
+        key = tuple(sorted(paths))
+        if key not in self._index:
+            from .symbols import index_sources
+            self._index[key] = index_sources(repo, list(paths))
+        return self._index[key]
 
     def file_ast(self, revision: str, path: str, content: str):
         """Parsed AST for one file at one revision (cached, parse-only)."""
@@ -220,6 +255,63 @@ def analyze(repo: Repository, target: Target, mode: str = "why",
     result.callers = [c.to_dict() for c in caller_refs]
     result.symbol = target_sym.to_dict() if target_sym is not None else None
     all_evidence = [*all_evidence, *caller_ev]
+
+    # --- Movement (Phase 2D) ------------------------------------------
+    # Standalone modes only: --diff / --commit classify movement at the
+    # change boundary (parent->commit, HEAD->worktree) where BOTH trees
+    # are known; the shared pipeline here corrects the one dangerous case
+    # blame alone gets wrong - code MOVED between files that git's
+    # similarity detection missed, where blame credits the MOVE commit as
+    # the introduction. Confirmed movement becomes one evidence item that
+    # flows through the existing ranking/confidence/risk (it must NEVER
+    # turn the mover into the "original introduction" fact).
+    if mode in ("why", "history", "risk"):
+        movement = _build_standalone_movement(repo, memo, target, revision,
+                                              blame_lines)
+        if movement is not None:
+            result.movement = movement
+            from dataclasses import replace
+            from .models import EvidenceItem
+            from .ranking import weight_for
+            moved_by = movement.get("moved_by") or "?"
+            origin = movement.get("origin") or "?"
+            # Re-attribute the introducing EVIDENCE from the mover to the
+            # TRUE origin: the mover is never the introduction (Phase 2D
+            # core rule). Raw blame FACTS stay raw (honest git data); the
+            # evidence layer carries the correction.
+            if origin != "?" and moved_by != "?":
+                origin_ci = memo.commit_map.get(origin)
+                if origin_ci is None:
+                    from .history import commit_info
+                    origin_ci = commit_info(repo, origin)
+                origin_subj = origin_ci.subject if origin_ci else ""
+                fixed = []
+                for e in all_evidence:
+                    if e.kind == "introduced_by" and e.commit == moved_by:
+                        head = e.text.split(" introduced by ", 1)[0]
+                        fixed.append(replace(
+                            e, commit=origin,
+                            text=(f"{head} introduced by {origin[:8]}: "
+                                  f"{origin_subj} (moved here by "
+                                  f"{moved_by[:8]})"),
+                            reasons=[*e.reasons,
+                                     "re-attributed: this commit MOVED the "
+                                     "code; the mover is not the introduction"]))
+                    else:
+                        fixed.append(e)
+                all_evidence = fixed
+            all_evidence = [*all_evidence, EvidenceItem(
+                kind="code_movement",
+                commit=movement.get("moved_by"),
+                text=(f"code moved here by {moved_by[:8] if moved_by != '?' else '?'} "
+                      f"from {movement.get('source_path')}; originally introduced "
+                      f"by {origin[:8] if origin != '?' else '?'} "
+                      f"({movement.get('origin_path')})"),
+                weight=weight_for("code_movement"),
+                reasons=["movement evidence: git rename metadata and/or "
+                         "symbol-level continuity across the move commit"],
+                is_counter=False)]
+
     ranked = rank_evidence(all_evidence)
 
     for e in ranked:
@@ -248,3 +340,93 @@ def _commit_row(c) -> dict:
         "subject": c.subject,
         "author": c.author,
     }
+
+
+def _build_standalone_movement(repo: Repository, memo: AnalysisMemo,
+                               target: Target, revision: str,
+                               blame_lines) -> Optional[dict]:
+    """Movement evidence for a standalone (WHY/HISTORY/RISK) analysis.
+
+    Two cases:
+    1. git's blame followed a rename: the blame `filename` field holds
+       the ORIGIN path and the blamed commit is the original introducer.
+       A bounded movement-chain walk finds which commit MOVED the code.
+    2. blame credited the CURRENT path (git's similarity detection
+       missed a partial move): find_origin checks whether the blamed
+       commit's parent had the same symbol elsewhere; on a confirmed
+       match the mover is the blamed commit and the true origin is
+       blamed from the source range.
+
+    Returns a Movement-style dict, or None (no movement established -
+    a genuine introduction stays an introduction).
+    """
+    if not blame_lines:
+        return None
+    origin_paths: dict = {}
+    for bl in blame_lines:
+        if bl.filename and bl.filename != target.file:
+            origin_paths.setdefault(bl.commit, bl.filename)
+    if origin_paths:
+        # Case 1: blame followed the rename - origin is a FACT. The chain
+        # walk surfaces WHICH commit(s) moved it (spec 2D/19: trace the
+        # whole chain, not just the last move).
+        origin_commit, origin_path = next(iter(origin_paths.items()))
+        from .history import movement_chain
+        chain = movement_chain(repo, target.file, revision=revision)
+        moved_by = None
+        mtype = "CODE_MOVEMENT"
+        public_chain = []
+        for ev in chain:
+            if ev["kind"] == "rename" and ev["new_path"] == target.file:
+                if moved_by is None:
+                    moved_by = ev["commit"]
+                    mtype = "RENAME"
+            if ev["kind"] == "create" and ev["new_path"] == target.file:
+                if moved_by is None:
+                    moved_by = ev["commit"]
+            public_chain.append({"commit": ev["commit"],
+                                 "old_path": ev["old_path"],
+                                 "new_path": ev["new_path"]})
+        # The immediate source of the last move (the full chain stays in
+        # `chain` for the multi-hop trace).
+        immediate = chain[0]["old_path"] if chain else origin_path
+        return {
+            "type": mtype,
+            "source_path": immediate,
+            "source_symbol": None,
+            "dest_path": target.file,
+            "dest_symbol": None,
+            "moved_by": moved_by,
+            "origin": origin_commit,
+            "origin_path": origin_path,
+            "confidence": "HIGH",
+            "signals": ["git blame rename follow (origin path from blame)",
+                         "movement chain walk"] + (
+                            ["git rename metadata"] if mtype == "RENAME" else []),
+            "chain": public_chain,
+        }
+    # Case 2: blame credited the current path - partial-move correction.
+    from collections import Counter
+    from .symbols import find_origin
+    common = Counter(bl.commit for bl in blame_lines).most_common(1)[0][0]
+    mv = find_origin(repo, memo, common, revision, target)
+    if mv is None:
+        return None
+    # Origin commit: blame the source symbol's range at the mover's parent.
+    parent = mv.get("_parent")
+    start = mv.get("_source_start")
+    end = mv.get("_source_end")
+    src = mv.get("source_path")
+    if parent and start and src:
+        try:
+            from .history import blame_target
+            origin_lines = blame_target(
+                repo, Target(file=src, start_line=start, end_line=end),
+                revision=parent)
+            if origin_lines:
+                mv["origin"] = origin_lines[0].commit
+        except GitError:
+            pass
+    for drop in ("_parent", "_source_start", "_source_end"):
+        mv.pop(drop, None)
+    return mv

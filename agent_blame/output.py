@@ -57,6 +57,36 @@ def _kv(label: str, value: str) -> str:
     return f"  {label}: {sanitize(value)}"
 
 
+def _render_movement(out: list, mv: dict, indent: str = "  ") -> None:
+    """Render a movement block (Phase 2D).
+
+    The whole point: the mover is NEVER the introduction. The origin
+    (where the code actually came from) is shown separately from the
+    mover (which commit moved it), with the multi-hop chain when present.
+    """
+    mtype = mv.get("type", "UNKNOWN")
+    conf = mv.get("confidence", "")
+    out.append(_b(f"{indent}Movement: {mtype} ({conf})"))
+    if mv.get("moved_by"):
+        src = f" from {sanitize(mv['source_path'])}" if mv.get("source_path") else ""
+        out.append(f"{indent}  Moved here by: {sanitize(mv['moved_by'])[:8]}{src}")
+    elif mv.get("source_path"):
+        out.append(f"{indent}  Source: {sanitize(mv['source_path'])}")
+    if mv.get("origin"):
+        op = f" ({sanitize(mv['origin_path'])}) " if mv.get("origin_path") else " "
+        out.append(f"{indent}  Originally introduced by: "
+                   f"{sanitize(mv['origin'])[:8]}{op}(not the mover)")
+    elif mv.get("source_path"):
+        out.append(f"{indent}  Original introduction: not traced")
+    for ev in mv.get("chain") or []:
+        out.append(f"{indent}  • {sanitize(ev['commit'])[:8]}: "
+                   f"{sanitize(ev['old_path'] or '?')} -> "
+                   f"{sanitize(ev['new_path'])}")
+    for s in mv.get("signals") or []:
+        out.append(f"{indent}  · {sanitize(s)}")
+    out.append("")
+
+
 def render_terminal(result: AnalysisResult, verbose: bool = False) -> str:
     """Render an AnalysisResult as human-readable terminal output.
 
@@ -127,6 +157,11 @@ def render_terminal(result: AnalysisResult, verbose: bool = False) -> str:
             out.append(f"  ✗ {sanitize(e['text'])}")
         out.append("")
 
+    # --- Movement (Phase 2D) -------------------------------------------
+    if result.movement:
+        out.append(_b("Movement"))
+        _render_movement(out, result.movement, indent="  ")
+
     # --- Callers (Phase 2C) --------------------------------------------
     if result.symbol is not None:
         out.append(_b("Callers"))
@@ -190,12 +225,15 @@ def render_diff_terminal(result: DiffResult, verbose: bool = False) -> str:
             header += f" from {sanitize(f.old_path)}"
         header += ")"
         out.append(_b(header))
-        out.append("")
+        if f.movement:
+            _render_movement(out, f.movement, indent="  ")
 
         for g in f.groups:
             if g.new_file:
                 out.append("  New file - no historical evidence available "
                            f"({g.added_lines} line(s) added).")
+                if g.analysis.get("movement"):
+                    _render_movement(out, g.analysis["movement"], indent="  ")
                 _render_group_changes(out, g, verbose)
                 out.append("")
                 continue
@@ -223,6 +261,8 @@ def render_diff_terminal(result: DiffResult, verbose: bool = False) -> str:
                 out.append(f"  Changed: {', '.join(ranges_txt)}")
             else:
                 out.append("  No textual changes (binary or pure rename).")
+            if a.get("movement"):
+                _render_movement(out, a["movement"], indent="  ")
             _render_group_changes(out, g, verbose)
 
             # Historical context: the introducing commit(s) from blame facts.
@@ -408,12 +448,15 @@ def render_commit_terminal(result: CommitResult, verbose: bool = False) -> str:
             header += f" from {sanitize(c.old_path)}"
         header += ")"
         out.append(_b(header))
-        out.append("")
+        if c.movement:
+            _render_movement(out, c.movement, indent="  ")
 
         for g in c.groups:
             if g.new_file:
                 out.append("  New file in this commit - no prior history "
                            f"({g.added_lines} line(s) added).")
+                if g.analysis.get("movement"):
+                    _render_movement(out, g.analysis["movement"], indent="  ")
                 for fct in g.analysis.get("facts", []):
                     out.append(f"  ✓ {sanitize(fct.get('text', ''))}")
                 out.append("")
@@ -441,6 +484,8 @@ def render_commit_terminal(result: CommitResult, verbose: bool = False) -> str:
                 out.append(f"  Changed: {', '.join(ranges_txt)}")
             else:
                 out.append("  No textual changes (binary or pure rename).")
+            if a.get("movement"):
+                _render_movement(out, a["movement"], indent="  ")
             _render_group_changes(out, g, verbose)
 
             # Historical context: introducing commits of the PREVIOUS

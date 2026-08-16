@@ -39,6 +39,9 @@ from .git import GitError, git_output
 from .history import file_exists_at_head
 from .models import (AnalysisResult, Confidence, DiffChange, DiffFile,
                      DiffGroup, DiffResult, Target)
+from .movement import (boundary_movements, intersecting_movement,
+                       moved_symbol_group, public_movement,
+                       rename_movement)
 from .repository import Repository
 
 _HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
@@ -301,7 +304,11 @@ def analyze_diff(repo: Repository, staged: bool = False,
         return result
 
     # Untracked files are invisible to git diff - report them as new
-    # files with no historical evidence (never fabricated).
+    # files with no historical evidence (never fabricated). A worktree
+    # RENAME is exactly this shape (untracked new path + deleted old
+    # path), so untracked .py files participate in the movement boundary
+    # analysis below and carry the movement when a move is confirmed.
+    untracked: List[str] = []
     if not staged:
         untracked = list_untracked(repo)
         for u in sorted(untracked):
@@ -324,6 +331,43 @@ def analyze_diff(repo: Repository, staged: bool = False,
 
     change_map = {m["path"]: m["status"] for m in file_meta}
 
+    # --- Movement (Phase 2D): are any of these changes MOVES?
+    # Symbol-level continuity between HEAD and the working tree / index,
+    # restricted to the changed paths (a move's source and destination are
+    # both in the change by definition). Added ranges inside a moved
+    # symbol are traced to the SOURCE at HEAD - never reported as new
+    # code with no history.
+    rename_map = {m["path"]: m["old_path"] for m in file_meta
+                  if m["status"] in ("R", "C") and m["old_path"]}
+    boundary_mv: Dict[str, List[dict]] = {}
+    if file_meta or untracked:
+        before_paths = sorted({m.get("old_path") or m["path"]
+                               for m in file_meta
+                               if m["status"] in ("A", "M", "R", "C", "D")})
+        after_paths = sorted({m["path"] for m in file_meta
+                              if m["status"] in ("A", "M", "R", "C")})
+        if not staged:
+            after_paths = sorted(set(after_paths) | {u for u in untracked
+                                                     if u.endswith(".py")})
+        if before_paths and after_paths:
+            try:
+                before = memo.py_sources_limited(repo, "HEAD", before_paths)
+                if staged:
+                    after = memo.index_sources(repo, after_paths)
+                else:
+                    after = memo.worktree_sources(repo.root, after_paths)
+                boundary_mv = boundary_movements(
+                    repo, memo, before, after, rename_map, revision="HEAD")
+            except GitError:
+                boundary_mv = {}
+
+    # Attach confirmed movement to untracked files (worktree renames: an
+    # untracked new path whose content came from a deleted tracked file).
+    if not staged and boundary_mv:
+        for df in result.files:
+            if df.status == "?" and boundary_mv.get(df.path):
+                df.movement = public_movement(boundary_mv[df.path][0])
+
     for meta in file_meta:
         status = meta["status"]
         path = meta["path"]
@@ -341,6 +385,7 @@ def analyze_diff(repo: Repository, staged: bool = False,
         hunks = _parse_hunks(raw)
 
         diff_file = DiffFile(path=path, status=status, old_path=old_path)
+        file_mvs = boundary_mv.get(path, [])
 
         if not hunks:
             # Binary file, or a pure rename with no content change.
@@ -357,6 +402,13 @@ def analyze_diff(repo: Repository, staged: bool = False,
                 ))
                 warnings.append(f"{path}: binary or no textual changes")
             elif status == "R":
+                # Worktree rename: origin = the introducing commit of the
+                # OLD path at HEAD (the first line's blame - the file's
+                # creator in the overwhelming majority of cases).
+                mv = rename_movement(old_path or path, path,
+                                     _rename_origin(repo, old_path or path))
+                mv["moved_by"] = None  # worktree rename: no commit yet
+                diff_file.movement = mv
                 diff_file.groups.append(DiffGroup(
                     ranges=[], changes=[], added_lines=0, deleted_lines=0,
                     analysis=AnalysisResult(
@@ -381,6 +433,24 @@ def analyze_diff(repo: Repository, staged: bool = False,
                 h["old_changed"], h["new_changed"], old_map, new_map,
                 h["old_start"], h["new_start"])
             old_changed = h["old_changed"]
+
+            # Moved symbol in this hunk's ADDED range (Phase 2D): trace
+            # the origin to the SOURCE at HEAD instead of reporting the
+            # added lines as new code with no history. Only applies to
+            # pure additions - hunks with real old-side changes keep the
+            # normal modification/deletion analysis.
+            if not old_changed:
+                mv = intersecting_movement(
+                    file_mvs, h["new_start"],
+                    h["new_start"] + h["new_count"] - 1)
+                if mv is not None:
+                    m_group = moved_symbol_group(
+                        repo, memo, path, mv, h, changes, None, "HEAD",
+                        mode="diff", change_map=change_map)
+                    if m_group is not None:
+                        groups.append(m_group)
+                        continue
+
             if is_new:
                 groups.append(DiffGroup(
                     ranges=[{"old": None, "new": {"start": h["new_start"],
@@ -462,6 +532,22 @@ def analyze_diff(repo: Repository, staged: bool = False,
                 merged.append(g)
 
         diff_file.groups = merged
+
+        # Per-file movement (Phase 2D): symbol-level first, then the
+        # git-confirmed file rename (origin = first blame fact of the
+        # analyzed groups - the code's introducer before the rename).
+        if file_mvs:
+            diff_file.movement = public_movement(file_mvs[0])
+        elif status == "R" and old_path:
+            origin = None
+            for g in merged:
+                for fct in g.analysis.get("facts", []):
+                    if fct.get("kind") == "blame":
+                        origin = fct.get("commit")
+                        break
+                if origin:
+                    break
+            diff_file.movement = rename_movement(old_path, path, origin)
         result.files.append(diff_file)
 
     return result
@@ -478,7 +564,24 @@ def _analysis_signature(g: DiffGroup) -> Tuple:
                            for e in a.get("counter_evidence", [])))
     return (g.new_file, introducers, evidence, counter,
             a.get("confidence", {}).get("level"),
-            a.get("risk", {}).get("level"))
+            a.get("risk", {}).get("level"),
+            (a.get("movement") or {}).get("type"))
+
+
+def _rename_origin(repo: Repository, path: str) -> Optional[str]:
+    """The introducing commit of `path` at HEAD (for worktree renames).
+
+    Blames the first line - the file's creator in the overwhelming
+    majority of cases. Never a traceback: returns None when the path is
+    gone or unblamable. One cheap git call.
+    """
+    from .history import blame_target
+    try:
+        lines = blame_target(repo, Target(file=path, start_line=1,
+                                          end_line=1), revision="HEAD")
+    except GitError:
+        return None
+    return lines[0].commit if lines else None
 
 
 def _INSUFFICIENT(reason: str = "no historical evidence") -> Confidence:

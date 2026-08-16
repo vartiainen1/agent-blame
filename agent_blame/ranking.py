@@ -38,6 +38,12 @@ WEIGHTS: Dict[str, float] = {
     "import_reference": 0.10,  # module/symbol imported elsewhere
     "possible_caller": 0.05,   # name matches but resolution is ambiguous
 
+    # Movement (Phase 2D). A confirmed move means the code has DEEPER
+    # history than its current file suggests - the mover is never the
+    # introduction. Small weight: it enriches context, it does not by
+    # itself decide confidence or risk.
+    "code_movement": 0.10,     # code moved here from another path
+
     # Medium: same-file relationships.
     "same_file": 0.10,
 

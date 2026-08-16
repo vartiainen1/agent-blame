@@ -46,6 +46,9 @@ class BlameLine:
     summary: str                    # subject of that commit (raw, unsanitized)
     author: str                     # author name (raw)
     author_time: str                # ISO-8601 author date
+    filename: Optional[str] = None  # ORIGIN path when git's rename detection
+                                    # followed a rename; None when the line
+                                    # was introduced at its current path
 
 
 @dataclass(frozen=True)
@@ -164,6 +167,12 @@ class Risk:
 # ---------------------------------------------------------------------------
 # Symbol / caller relationships (Phase 2C)
 # ---------------------------------------------------------------------------
+#
+# Movement evidence (Phase 2D) uses plain dicts, not a dataclass - see
+# movement.py for the schema (type / source_path / source_symbol /
+# dest_path / dest_symbol / moved_by / origin / origin_path / confidence /
+# signals / chain). The one rule that matters: `origin` (the true
+# introducer) and `moved_by` (the mover) are ALWAYS kept separate.
 
 @dataclass(frozen=True)
 class Symbol:
@@ -302,6 +311,7 @@ class DiffFile:
     status: str                     # "A" | "D" | "M" | "R" | "?" (untracked)
     old_path: Optional[str] = None  # previous path for renames/deletes
     groups: List[DiffGroup] = field(default_factory=list)
+    movement: Optional[dict] = None  # Movement dict (Phase 2D), or None
 
     def to_dict(self) -> dict:
         return {
@@ -309,6 +319,7 @@ class DiffFile:
             "status": self.status,
             "old_path": self.old_path,
             "groups": [g.to_dict() for g in self.groups],
+            "movement": self.movement,
         }
 
 
@@ -353,6 +364,7 @@ class CommitChange:
     old_path: Optional[str] = None  # previous path for renames
     groups: List[DiffGroup] = field(default_factory=list)
     after: dict = field(default_factory=dict)  # later-history scan
+    movement: Optional[dict] = None  # Movement dict (Phase 2D), or None
 
     def to_dict(self) -> dict:
         return {
@@ -361,6 +373,7 @@ class CommitChange:
             "old_path": self.old_path,
             "groups": [g.to_dict() for g in self.groups],
             "after": self.after,
+            "movement": self.movement,
         }
 
 
@@ -407,6 +420,7 @@ class AnalysisResult:
     counter_evidence: List[dict] = field(default_factory=list)
     callers: List[dict] = field(default_factory=list)   # CallerRef dicts
     symbol: Optional[dict] = None      # resolved target Symbol dict, or None
+    movement: Optional[dict] = None    # Movement dict (Phase 2D), or None
     history: List[dict] = field(default_factory=list)
     risk: Risk = field(default_factory=lambda: Risk("UNKNOWN", []))
     warnings: List[str] = field(default_factory=list)
@@ -425,6 +439,7 @@ class AnalysisResult:
             "counter_evidence": self.counter_evidence,
             "callers": self.callers,
             "symbol": self.symbol,
+            "movement": self.movement,
             "history": self.history,
             "risk": self.risk.to_dict(),
             "warnings": self.warnings,

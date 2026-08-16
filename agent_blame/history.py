@@ -81,6 +81,7 @@ def _parse_porcelain_blame(lines: List[str]) -> List[BlameLine]:
                     summary=current.get("summary", ""),
                     author=current.get("author", ""),
                     author_time=current.get("author_date", ""),
+                    filename=current.get("filename"),
                 ))
             current = {}
             current_line = None
@@ -95,6 +96,10 @@ def _parse_porcelain_blame(lines: List[str]) -> List[BlameLine]:
         key, _, value = line.partition(" ")
         if key in ("author", "summary"):
             current[key] = value
+        elif key == "filename":
+            # The ORIGIN path when git's rename detection followed a
+            # rename (line-porcelain reports the pre-rename path here).
+            current["filename"] = value
         elif key == "author-time":
             # Convert unix timestamp to ISO-8601 for stable, sortable dates.
             try:
@@ -114,8 +119,79 @@ def _parse_porcelain_blame(lines: List[str]) -> List[BlameLine]:
                 summary=current.get("summary", ""),
                 author=current.get("author", ""),
                 author_time=current.get("author_date", ""),
+                filename=current.get("filename"),
             ))
     return result
+
+
+def movement_chain(repo: Repository, path: str, revision: str = "HEAD",
+                   max_commits: int = 25) -> List[dict]:
+    """The movement events in `path`'s history, newest first.
+
+    Returns a list of dicts, newest first, each:
+      {"commit": sha, "kind": "rename"|"create",
+       "old_path": ..., "new_path": ...}
+    A "rename" event is git-confirmed rename metadata (R<score>); a
+    "create" event is the commit where the path first appeared under its
+    CURRENT name - the mover when git's similarity threshold missed the
+    rename (symbol-level continuity then confirms the connection).
+
+    Bounded walk: ONE `git log --follow` call (sha + parents in one
+    format line, capped at `max_commits`) plus at most `max_commits`
+    tiny per-commit name-status diffs. A pathspec is deliberately NOT
+    passed to the per-commit diff - a pathspec disables git's rename
+    detection, and rename detection is exactly what we are asking about
+    (probed empirically). The walk follows the chain BACKWARD through
+    the renames (the "current path" starts as the target path and each
+    confirmed rename rewinds it), which handles multiple sequential
+    moves - the `--follow --diff-filter=R` shortcut only ever surfaces
+    the most recent one.
+    """
+    raw = git_output(
+        ["log", "--follow", "-n", str(max_commits),
+         "--format=%H%x01%P%x00", revision, "--", path],
+        cwd=repo.root,
+    )
+    events: List[dict] = []
+    current = path
+    for record in raw.split("\x00"):
+        if not record:
+            continue
+        # The NUL record terminator leaves a trailing newline that glues
+        # itself to the NEXT record's sha (same integrity class as the
+        # Phase 2A batched-metadata bug) - strip it before using the sha.
+        sha = record.partition("\x01")[0].strip()
+        if not sha:
+            continue
+        parents = record.partition("\x01")[2]
+        first_parent = parents.split()[0] if parents.strip() else None
+        if not first_parent:
+            continue
+        try:
+            meta = git_output(
+                ["diff", "--name-status", "-z", "-M",
+                 "--no-ext-diff", "--no-textconv", "--no-color",
+                 first_parent, sha],
+                cwd=repo.root,
+            )
+        except GitError:
+            continue
+        from .diff import _parse_name_status  # shared NUL-safe parser
+        for m in _parse_name_status(meta):
+            if m["status"] == "R" and m["path"] == current:
+                events.append({"commit": sha, "kind": "rename",
+                               "old_path": m["old_path"],
+                               "new_path": m["path"]})
+                current = m["old_path"]
+                break
+            if m["status"] == "A" and m["path"] == current:
+                # The path first appeared under its CURRENT name here -
+                # the mover when git's similarity threshold missed the
+                # rename (symbol-level continuity then confirms it).
+                events.append({"commit": sha, "kind": "create",
+                               "old_path": None, "new_path": path})
+                break
+    return events
 
 
 def _iso_from_epoch(ts: int) -> str:

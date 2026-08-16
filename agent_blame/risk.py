@@ -77,7 +77,6 @@ def analyze_risk(evidence: List[EvidenceItem], has_history: bool) -> Risk:
         high_reasons.append(
             f"{len(callers)} confirmed live caller(s) depend on this code"
         )
-
     if "replacement" in kinds:
         low_reasons.append("replacement/superseding implementation detected")
     if "deleted_lines" in kinds:
@@ -88,7 +87,15 @@ def analyze_risk(evidence: List[EvidenceItem], has_history: bool) -> Risk:
     low = len(low_reasons)
     level = _level_for(high, low, has_history)
 
+    # Movement is CONTEXT, never a level signal by itself (spec 2D/25:
+    # "moved = high risk" is forbidden). A confirmed move means the code
+    # predates its current file - the level is driven by the same signals
+    # as before, while the reasons carry the movement fact.
     reasons = high_reasons + low_reasons
+    if "code_movement" in kinds:
+        for e in evidence:
+            if e.kind == "code_movement" and e.text:
+                reasons.append(e.text)
     if level == "UNKNOWN" and has_history and not reasons:
         reasons = ["no strong historical signals found in available history"]
     return Risk(level=level, reasons=reasons)

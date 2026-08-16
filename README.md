@@ -255,8 +255,9 @@ mode. Machine consumers get complete per-commit evidence; nothing is lost.
   differ by ±1 from diff-based counting on files whose line endings were
   normalized — immaterial to the thresholds used.
 - In `--diff` mode, a pure rename with no content change is reported without
-  per-line analysis. `--commit` mode instead analyzes the whole moved file
-  against the baseline (bounded by a size guard for binary blobs).
+  per-line analysis, but carries the movement classification (type, mover,
+  origin). `--commit` mode instead analyzes the whole moved file against the
+  baseline (bounded by a size guard for binary blobs).
 
 ---
 
@@ -416,6 +417,99 @@ symbol dict, or `null`) and `callers[]` — one entry per caller with
 `confidence` and `text`. TEXTUAL_MATCH / UNRESOLVED findings appear as
 aggregated single entries with a count. Existing schema keys are
 unchanged.
+
+---
+
+## Code movement / rename tracking
+
+The central rule of this phase (spec 2D/23): **a movement commit is never
+reported as the code's original introduction.**
+
+```text
+INTRODUCTION  (commit A: adds foo in old.py)
+    ↓
+MOVEMENT      (commit B: moves foo to new.py)   ← never called the origin
+    ↓
+MODIFICATION  (commit C: changes foo)           ← still credits A + B
+```
+
+`agent-blame new.py:<line>` reports *"moved here by B, originally
+introduced by A"* — and only says "original introduction" when the
+evidence supports it (spec 2D/10).
+
+### Three sources of movement evidence (strength order)
+
+1. **Git rename metadata** — `git diff -M` R<score> entries are
+git-confirmed file renames (`RENAME`).
+2. **Blame origin capture** — `git blame --line-porcelain` carries the
+pre-rename path; the tool now records it, and a **bounded chain walk**
+(`git log --follow` + per-commit name-status diffs, capped) finds *which
+commit moved the code* — including multiple sequential moves
+(`old.py → middle.py → new.py` traces back to the true origin).
+3. **Symbol-level continuity** (Python, stdlib `ast` + `difflib`, parse
+only) — catches the **partial moves** git's similarity threshold misses
+(a symbol that leaves one file and appears in another). This is the case
+that would otherwise blame the MOVE commit as the introduction; the tool
+corrects it via a `git grep`-gated origin check that is one cheap call
+when no candidate exists.
+
+### Classification
+
+| Type | Meaning | Confidence |
+|------|---------|-----------|
+| `RENAME` | git-confirmed file rename (R<score>) | HIGH |
+| `CODE_MOVEMENT` | symbol continuity confirmed, source removed | HIGH |
+| `POSSIBLE_MOVEMENT` | strong similarity but incomplete/ambiguous | MEDIUM / AMBIGUOUS |
+| `COPY` | strong similarity but the source still exists | HIGH |
+
+Similarity is a documented **heuristic** (word-level token ratio,
+`difflib.SequenceMatcher`), never a probability. "Removed from source"
+means the implementation is gone — a name that survives only as a
+diverged stub/rewrite counts as removed (the real code moved).
+Ambiguity (two equally plausible origins) degrades to
+`POSSIBLE_MOVEMENT`/`AMBIGUOUS`, never a confident guess.
+
+### Honesty rules
+
+- A copy is **never** called a move (`COPY`, not `CODE_MOVEMENT`).
+- Unsupported languages get no *symbol*-level claim (a git-detected file
+rename is language-agnostic and still reported as `RENAME`).
+- The raw blame **fact** stays raw (git said what it said); the
+**evidence** layer carries the correction — the introducing evidence is
+re-attributed to the origin with a "moved here by" note.
+- Movement is **context, not risk**: it appears in risk reasons but never
+drives the level by itself ("moved = high risk" is forbidden, spec 2D/25).
+
+### Where it lands
+
+- **WHY / HISTORY / RISK**: a `Movement` section (type, mover, origin,
+full multi-hop chain when present) + a `code_movement` evidence item
+(weight +0.10, documented heuristic).
+- **`--diff`**: worktree renames (untracked new path + deleted old path)
+are detected and traced; added ranges inside a moved symbol are analyzed
+against the SOURCE at HEAD instead of "no previous version".
+- **`--commit`**: the commit's changes are classified (`RENAME` /
+`CODE_MOVEMENT` / `POSSIBLE_MOVEMENT` / `COPY`) with `FROM`/`TO`/origin;
+added ranges of moved symbols are analyzed against the source at the
+parent revision.
+
+### JSON
+
+Additive fields only: `movement` on `AnalysisResult` (and on each
+`CommitChange` / `DiffFile`), with `type`, `source_path`, `source_symbol`,
+`dest_path`, `dest_symbol`, `moved_by`, `origin`, `origin_path`,
+`confidence`, `signals` and (for the chain) `chain[]`. All pre-existing
+schema keys are unchanged.
+
+### Known limitations (documented, not hidden)
+
+- **Merge commits** use the first-parent baseline; movement analysis
+across merges is not attempted (documented in commit mode).
+- **Shallow clones**: `LIMITED HISTORY` — a truncated history may hide the
+true origin; the tool says so instead of guessing.
+- **Similarity is heuristic**: near-identical small functions in unrelated
+files can score high; the margin + source-removal rules are the
+conservative guard, and ambiguity is reported as such.
 
 ---
 

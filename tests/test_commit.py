@@ -469,7 +469,8 @@ class TestJsonStructure(_Base):
 
     def test_diff_schema_unchanged(self):
         # The existing --diff JSON must not have drifted (spec: don't break
-        # existing consumers): DiffFile has no new keys.
+        # existing consumers). The ONLY addition is the nullable
+        # `movement` field (Phase 2D) - every pre-existing key is intact.
         from agent_blame.diff import analyze_diff
         from tests.gitfixture import make_diff_modify_fixture
         fx = make_diff_modify_fixture()
@@ -479,7 +480,8 @@ class TestJsonStructure(_Base):
             data = jsonlib.loads(render_json(res))
             f = data["files"][0]
             self.assertEqual(set(f.keys()),
-                             {"path", "status", "old_path", "groups"})
+                             {"path", "status", "old_path", "groups",
+                              "movement"})
         finally:
             fx.cleanup()
 

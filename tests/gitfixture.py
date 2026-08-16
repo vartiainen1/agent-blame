@@ -1017,3 +1017,193 @@ def make_caller_modify_commit_fixture() -> GitFixture:
     })
     f.shas = {"A": a, "B": b, "C": c}
     return f
+
+
+# ---------------------------------------------------------------------------
+# Phase 2D: code-movement / rename fixtures. Each has a KNOWN movement
+# chain so tests can assert the central property of the phase:
+#
+#     MOVEMENT must never be reported as INTRODUCTION.
+#
+# The fixtures deliberately include the cases git's own similarity
+# detection gets wrong (partial moves) - those are the ones that would
+# otherwise blame the MOVE commit as the origin.
+# ---------------------------------------------------------------------------
+
+def make_movement_pure_rename_fixture() -> GitFixture:
+    """1+2. Pure file rename, then a modification after the rename.
+
+    A: "Add foo in old.py"        (introduces old.py)
+    B: "Rename to new.py"         (git mv - 100% similarity, blame follows)
+    C: "Modify foo"               (changes the body after the move)
+    """
+    f = GitFixture()
+    a = f.commit("Add foo in old.py", {
+        "old.py": "def foo():\n    return 1\n",
+    })
+    b = f.mv("old.py", "new.py", "Rename to new.py")
+    c = f.commit("Modify foo", {
+        "new.py": "def foo():\n    return 2\n",
+    })
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_movement_partial_fixture() -> GitFixture:
+    """3. PARTIAL move (the dangerous case): foo moves out of old.py while
+    bar stays - git's similarity threshold misses the move entirely.
+
+    A: "Add foo and bar in old.py"   (old.py has foo + bar)
+    B: "Move foo to new.py"          (new.py gets foo; old.py keeps bar)
+
+    git blame on new.py credits B (the MOVER). Phase 2D must correct this
+    to: moved by B, originally introduced by A (the mandatory spec 2D/23
+    property: agent-blame new.py:<line> must NOT report "introduced by B").
+    """
+    f = GitFixture()
+    a = f.commit("Add foo and bar in old.py", {
+        "old.py": "def foo():\n    return 1\n\ndef bar():\n    return 2\n",
+    })
+    b = f.commit("Move foo to new.py", {
+        "old.py": "def bar():\n    return 2\n",
+        "new.py": "def foo():\n    return 1\n",
+    })
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_movement_modified_fixture() -> GitFixture:
+    """4. Moved AND modified: the moved body differs (return 2 vs 1)."""
+    f = GitFixture()
+    a = f.commit("Add foo and bar in old.py", {
+        "old.py": "def foo():\n    return 1\n\ndef bar():\n    return 2\n",
+    })
+    b = f.commit("Move and tweak foo", {
+        "old.py": "def bar():\n    return 2\n",
+        "new.py": "def foo():\n    return 2\n",
+    })
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_movement_multiple_fixture() -> GitFixture:
+    """10. MULTIPLE sequential moves: old.py -> middle.py -> new.py.
+
+    The chain must trace through BOTH moves back to A (bounded walk).
+    """
+    f = GitFixture()
+    a = f.commit("Add foo in old.py", {"old.py": "def foo():\n    return 1\n"})
+    b = f.mv("old.py", "middle.py", "Move to middle.py")
+    c = f.mv("middle.py", "new.py", "Move to new.py")
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_movement_copy_fixture() -> GitFixture:
+    """9. COPY: new.py gets foo while old.py KEEPS it - never a move."""
+    f = GitFixture()
+    a = f.commit("Add foo in old.py", {"old.py": "def foo():\n    return 1\n"})
+    b = f.commit("Copy foo to new.py", {
+        "old.py": "def foo():\n    return 1\n",
+        "new.py": "def foo():\n    return 1\n",
+    })
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_movement_ambiguous_fixture() -> GitFixture:
+    """17. AMBIGUOUS: two identical same-name symbols at different paths;
+    both deleted, one identical copy appears elsewhere. The origin cannot
+    be pinned to one - POSSIBLE_MOVEMENT / AMBIGUOUS, never a confident
+    claim of a specific origin."""
+    f = GitFixture()
+    a = f.commit("Add duplicate runners", {
+        "mod_a.py": "def run():\n    return 1\n",
+        "mod_b.py": "def run():\n    return 1\n",
+    })
+    import os as _os
+    _os.remove(_os.path.join(f.root, "mod_a.py"))
+    _os.remove(_os.path.join(f.root, "mod_b.py"))
+    f.write("new.py", "def run():\n    return 1\n")
+    b = f.commit("Move a run() to new.py")  # add -A: deletes + new file
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_movement_same_name_fixture() -> GitFixture:
+    """7. Same-name unrelated symbols: two `run()` definitions with
+    DIFFERENT bodies; the move must pick the structurally identical one."""
+    f = GitFixture()
+    a = f.commit("Add runners", {
+        "mod_a.py": "def run():\n    return 999\n",
+        "old.py": "def run():\n    return 1\n",
+    })
+    b = f.commit("Move run to new.py", {
+        "new.py": "def run():\n    return 1\n",
+    })
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_movement_unicode_fixture() -> GitFixture:
+    """16. Unicode paths: a file with a Unicode name moved to another
+    Unicode path."""
+    f = GitFixture()
+    a = f.commit("Add unicode module", {
+        "src/ünïcode/old.py": "def foo():\n    return 1\n",
+    })
+    b = f.mv("src/ünïcode/old.py", "src/émoji/new.py",
+             "Move to unicode path")
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_movement_unsupported_fixture() -> GitFixture:
+    """19. Unsupported language: a .js file moved - no symbol claim."""
+    f = GitFixture()
+    a = f.commit("Add js module", {"old.js": "function foo() { return 1; }\n"})
+    b = f.mv("old.js", "new.js", "Rename js file")
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_movement_malicious_fixture() -> GitFixture:
+    """18. Malicious content inside moved code (ANSI in a string) - the
+    analysis must not crash and output must stay sanitized. The source is
+    genuinely removed (a real move), so the move is confirmed."""
+    f = GitFixture()
+    a = f.commit("Add foo", {"old.py": "def foo():\n    return '\x1b[2J\x1b[H evil'\n"})
+    import os as _os
+    _os.remove(_os.path.join(f.root, "old.py"))
+    f.write("new.py", "def foo():\n    return '\x1b[2J\x1b[H evil'\n")
+    b = f.commit("Move foo")   # add -A stages the deletion + the new file
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_movement_diff_fixture() -> GitFixture:
+    """20. --diff integration: worktree rename (old.py deleted from the
+    tree, new.py untracked with the moved content)."""
+    f = GitFixture()
+    a = f.commit("Add foo and bar", {
+        "old.py": "def foo():\n    return 1\n\ndef bar():\n    return 2\n",
+    })
+    import os as _os
+    _os.remove(_os.path.join(f.root, "old.py"))
+    f.write("new.py", "def foo():\n    return 1\n")
+    f.shas = {"A": a}
+    return f
+
+
+def make_movement_commit_fixture() -> GitFixture:
+    """21. --commit integration: B is the partial-move commit itself."""
+    f = GitFixture()
+    a = f.commit("Add foo and bar in old.py", {
+        "old.py": "def foo():\n    return 1\n\ndef bar():\n    return 2\n",
+    })
+    b = f.commit("Move foo to new.py", {
+        "old.py": "def bar():\n    return 2\n",
+        "new.py": "def foo():\n    return 1\n",
+    })
+    f.shas = {"A": a, "B": b}
+    return f

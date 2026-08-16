@@ -17,7 +17,9 @@ from tests.gitfixture import (make_caller_simple_fixture,
                               make_commit_malicious_fixture,
                               make_diff_modify_fixture, make_evolution_fixture,
                               make_introduction_fixture,
-                              make_malicious_message_fixture)
+                              make_malicious_message_fixture,
+                              make_movement_partial_fixture,
+                              make_movement_pure_rename_fixture)
 
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -310,6 +312,45 @@ class TestCliCommitSecurity(unittest.TestCase):
         raw = jsonlib.dumps(data)
         for ch in raw:
             self.assertNotIn(ch, "\x1b\x07\x00")
+
+
+class TestCliMovement(unittest.TestCase):
+    """Phase 2D: the CLI must present a MOVE as a move, never as the
+    original introduction - the mandatory spec 2D/23 property, end to end."""
+
+    def setUp(self):
+        self.fx = make_movement_partial_fixture()
+        self.cwd = self.fx.root
+
+    def tearDown(self):
+        self.fx.cleanup()
+
+    def test_terminal_shows_move_and_origin(self):
+        proc = _run_cli(["new.py:1"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = proc.stdout
+        self.assertIn("Movement", out)
+        self.assertIn("CODE_MOVEMENT", out)
+        self.assertIn("Moved here by", out)
+        self.assertIn("Originally introduced by", out)
+        self.assertIn("not the mover", out)
+        # The ORIGIN commit's subject appears as the attributed evidence.
+        self.assertIn("Add foo and bar in old.py", out)
+
+    def test_json_movement_block(self):
+        proc = _run_cli(["new.py:1", "--json"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = jsonlib.loads(proc.stdout)
+        mv = data.get("movement")
+        self.assertIsNotNone(mv)
+        self.assertEqual(mv["type"], "CODE_MOVEMENT")
+        self.assertEqual(mv["origin"], self.fx.shas["A"])
+        self.assertEqual(mv["moved_by"], self.fx.shas["B"])
+        # The introducing EVIDENCE must point at the origin, not the mover.
+        intro = [e for e in data["evidence"] if e["kind"] == "introduced_by"]
+        self.assertTrue(intro)
+        self.assertTrue(all(e["commit"] == self.fx.shas["A"] for e in intro),
+                        "introducing evidence must be re-attributed to the origin")
 
 
 class TestCliSecurity(unittest.TestCase):

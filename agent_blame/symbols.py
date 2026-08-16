@@ -51,7 +51,7 @@ import ast
 import re
 from typing import Dict, List, Optional, Tuple
 
-from .git import git_output
+from .git import git_output, try_git_output
 from .graph import _is_test_path
 from .models import CallerRef, Symbol, Target
 from .ranking import weight_for
@@ -147,15 +147,22 @@ def _cat_file_batch(repo: Repository, shas: List[str]) -> Dict[str, str]:
     return out
 
 
-def load_py_sources(repo: Repository, revision: str) -> Dict[str, str]:
-    """All Python source at `revision`, memoized per revision on the memo.
+def load_py_sources(repo: Repository, revision: str,
+                    paths: Optional[List[str]] = None) -> Dict[str, str]:
+    """Python source at `revision`, optionally restricted to `paths`.
 
-    Exactly two git calls per revision (ls-tree + one cat-file batch).
-    Sources are kept for the run only - never persisted.
+    Exactly two git calls (ls-tree + one cat-file batch). Restricting to
+    a pathspec keeps movement analysis proportional to the CHANGE size
+    instead of the repository size (a move's source/destination are both
+    in the change by definition). Sources are kept for the run only.
     """
     files = _ls_tree_py_files(repo, revision)
     if not files:
         return {}
+    if paths is not None:
+        files = {p: s for p, s in files.items() if p in set(paths)}
+        if not files:
+            return {}
     if len(files) > _MAX_INDEX_FILES:
         return {}
     contents = _cat_file_batch(repo, sorted(files.values()))
@@ -164,6 +171,57 @@ def load_py_sources(repo: Repository, revision: str) -> Dict[str, str]:
         content = contents.get(sha)
         if content is not None:
             out[path] = content
+    return out
+
+
+def index_sources(repo: Repository, paths: List[str]) -> Dict[str, str]:
+    """Index (staged) content for `paths`, via ls-files + one cat-file batch.
+
+    Used by --diff --staged movement analysis: the "after" side of a
+    staged diff is the index, not the working tree. Two git calls total.
+    """
+    if not paths:
+        return {}
+    raw = git_output(["ls-files", "--stage", "-z", "--", *paths],
+                     cwd=repo.root)
+    blob_of: Dict[str, str] = {}
+    for entry in raw.split("\x00"):
+        if not entry:
+            continue
+        meta, _, path = entry.partition("\t")
+        parts = meta.split(" ")
+        if len(parts) == 3 and path.endswith(".py"):
+            blob_of[path] = parts[2]
+    if not blob_of:
+        return {}
+    contents = _cat_file_batch(repo, sorted(set(blob_of.values())))
+    out: Dict[str, str] = {}
+    for path, sha in blob_of.items():
+        content = contents.get(sha)
+        if content is not None:
+            out[path] = content
+    return out
+
+
+def worktree_sources(paths: List[str], root: str) -> Dict[str, str]:
+    """Read `paths` from the working tree on disk (never executed).
+
+    Used by --diff movement analysis: the "after" side of an unstaged
+    diff is the working tree, which is not a git revision. Reads are
+    bounded by the changed-file list and decoded with errors='replace'
+    (source is untrusted input).
+    """
+    import os
+    out: Dict[str, str] = {}
+    for p in paths:
+        if not p.endswith(".py"):
+            continue
+        try:
+            with open(os.path.join(root, p), "r",
+                      encoding="utf-8", errors="replace") as f:
+                out[p] = f.read()
+        except (OSError, ValueError):
+            continue
     return out
 
 
@@ -622,6 +680,308 @@ def _caller_text(caller: str, target: str, rel: str, path: str,
 
 def _name_in_text(content: str, name: str) -> bool:
     return bool(re.search(rf"\b{re.escape(name)}\b", content))
+
+
+# ---------------------------------------------------------------------------
+# Symbol-level movement matching (Phase 2D)
+# ---------------------------------------------------------------------------
+
+# Continuity thresholds (documented HEURISTICS, never probabilities):
+# >= _STRONG_SIMILARITY with a clear margin and source removal = a
+# confirmed move; >= _WEAK_SIMILARITY = possible move; below = no claim.
+_STRONG_SIMILARITY = 0.85
+_WEAK_SIMILARITY = 0.60
+_MARGIN = 0.15          # best candidate must beat the runner-up by this
+
+
+def _symbol_body(content: str, sym: Symbol) -> List[str]:
+    """The symbol's source body, normalized for continuity comparison.
+
+    Normalization: per-line leading/trailing whitespace stripped, blank
+    lines dropped. Pure data comparison - never executed.
+    """
+    lines = content.splitlines()
+    body = []
+    for i in range(sym.start_line - 1, min(sym.end_line, len(lines))):
+        t = lines[i].strip()
+        if t:
+            body.append(t)
+    return body
+
+
+_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|\d+")
+
+
+def _continuity(a: List[str], b: List[str]) -> float:
+    """Structural similarity of two symbol bodies (0.0 - 1.0), heuristic.
+
+    WORD-level tokens (identifiers and numbers), not whole lines: a
+    one-value change in a small function must not zero out the signal
+    (a moved function with one modified line is POSSIBLE movement, not
+    nothing). A wholesale rewrite shares almost no tokens and scores low.
+    """
+    from difflib import SequenceMatcher
+    ta = [t for line in a for t in _TOKEN_RE.findall(line)]
+    tb = [t for line in b for t in _TOKEN_RE.findall(line)]
+    if not ta or not tb:
+        return 0.0
+    return SequenceMatcher(None, ta, tb).ratio()
+
+
+def _source_removed(before: Dict[str, str], before_sym: Symbol,
+                    after_syms: List[Symbol],
+                    after: Dict[str, str]) -> bool:
+    """Is the BEFORE symbol's IMPLEMENTATION gone from the AFTER tree?
+
+    The copy-vs-move distinction (spec 2D/13): the source counts as
+    removed when no same-name symbol at its path still resembles it. A
+    stub or full rewrite (the name survives but the body diverged beyond
+    recognition) IS a removal - the real implementation moved away.
+    """
+    matches = [s for s in after_syms
+               if s.path == before_sym.path and s.kind == before_sym.kind
+               and _leaf(s.name) == _leaf(before_sym.name)]
+    if not matches:
+        return True
+    before_body = _symbol_body(before.get(before_sym.path, ""), before_sym)
+    for m in matches:
+        if _continuity(before_body,
+                       _symbol_body(after.get(m.path, ""), m)) \
+                >= _WEAK_SIMILARITY:
+            return False  # the source implementation still exists
+    return True          # only a diverged/stubbed remnant remains
+
+
+def _leaf(name: str) -> str:
+    return name.rsplit(".", 1)[-1]
+
+
+def match_moved_symbols(repo: Repository, memo, before: Dict[str, str],
+                        after: Dict[str, str],
+                        rename_map: Optional[Dict[str, str]] = None,
+                        ) -> List[dict]:
+    """Symbols that appear to have MOVED between the before/after trees.
+
+    Pure function over two content maps (revision blobs, index, or
+    worktree reads - the caller decides the boundary). For each AFTER
+    symbol that is new to its file, find BEFORE symbols of the same
+    (kind, leaf name) at a DIFFERENT path and score structural
+    continuity. A confirmed move requires: strong similarity, a clear
+    margin over any competing candidate, AND removal from the source
+    (otherwise it is a COPY, not a move). Ambiguity degrades to
+    POSSIBLE_MOVEMENT - never a confident claim from a name match alone.
+
+    Returns Movement-style dicts (type/source/dest/confidence/signals);
+    origin tracing is the caller's job (blame the source range).
+    """
+    before_syms: List[Symbol] = []
+    for path, content in before.items():
+        before_syms.extend(extract_symbols(content, path))
+    after_syms: List[Symbol] = []
+    for path, content in after.items():
+        after_syms.extend(extract_symbols(content, path))
+    if not before_syms or not after_syms:
+        return []
+
+    # Index BEFORE symbols by (kind, leaf name).
+    by_key: Dict[Tuple[str, str], List[Symbol]] = {}
+    for s in before_syms:
+        by_key.setdefault((s.kind, _leaf(s.name)), []).append(s)
+
+    # AFTER identity: (path, qualified name) present before?
+    before_ids = {(s.path, s.name) for s in before_syms}
+    after_by_path: Dict[str, List[Symbol]] = {}
+    for s in after_syms:
+        after_by_path.setdefault(s.path, []).append(s)
+
+    moves: List[dict] = []
+    for dest in after_syms:
+        if (dest.path, dest.name) in before_ids:
+            continue  # already existed at this path: not a move
+        key = (dest.kind, _leaf(dest.name))
+        candidates = by_key.get(key, [])
+        if not candidates:
+            continue
+        # Score EVERY different-path candidate (a move needs removal from
+        # the source; a strong match WITH the source still present is a
+        # COPY, never a move - spec 2D/13). "Removed" means the
+        # implementation is gone: name absent, or only a diverged
+        # stub/rewrite remains.
+        scored = []
+        for cand in candidates:
+            if cand.path == dest.path:
+                continue
+            source_gone = _source_removed(before, cand, after_syms, after)
+            score = _continuity(
+                _symbol_body(before.get(cand.path, ""), cand),
+                _symbol_body(after.get(dest.path, ""), dest))
+            scored.append((score, cand, source_gone))
+        if not scored:
+            continue
+        scored.sort(key=lambda t: -t[0])
+        best_score, best, best_gone = scored[0]
+        runner_up = scored[1][0] if len(scored) > 1 else 0.0
+        if best_score < _WEAK_SIMILARITY:
+            continue
+
+        type_ = "POSSIBLE_MOVEMENT"
+        confidence = "MEDIUM"
+        signals = [f"symbol identity ({dest.kind} {_leaf(dest.name)})",
+                   f"structural similarity {best_score:.2f}"]
+        if not best_gone:
+            # Strong similarity but the source still EXISTS: a copy, and
+            # spec 2D/13 says never claim "moved" for a copy.
+            if best_score >= _STRONG_SIMILARITY:
+                moves.append({
+                    "type": "COPY",
+                    "source_path": best.path,
+                    "source_symbol": best.name,
+                    "dest_path": dest.path,
+                    "dest_symbol": dest.name,
+                    "moved_by": None,
+                    "origin": None,
+                    "origin_path": None,
+                    "confidence": "HIGH",
+                    "signals": [*signals,
+                                 "source still exists - copy, not move"],
+                    "_dest_start": dest.start_line,
+                    "_dest_end": dest.end_line,
+                    "_source_start": best.start_line,
+                    "_source_end": best.end_line,
+                })
+            continue
+
+        if best_score >= _STRONG_SIMILARITY \
+                and best_score - runner_up >= _MARGIN:
+            type_ = "CODE_MOVEMENT"
+            confidence = "HIGH"
+        elif best_score - runner_up < _MARGIN:
+            type_ = "POSSIBLE_MOVEMENT"
+            confidence = "AMBIGUOUS"  # competing possible origins
+        signals.append("removed from source file")
+        if rename_map and rename_map.get(dest.path) == best.path:
+            signals.append("git rename metadata")
+        moves.append({
+            "type": type_,
+            "source_path": best.path,
+            "source_symbol": best.name,
+            "dest_path": dest.path,
+            "dest_symbol": dest.name,
+            "moved_by": None,
+            "origin": None,
+            "origin_path": None,
+            "confidence": confidence,
+            "signals": signals,
+            "_dest_start": dest.start_line,
+            "_dest_end": dest.end_line,
+            "_source_start": best.start_line,
+            "_source_end": best.end_line,
+        })
+    return moves
+
+
+def find_origin(repo: Repository, memo, blame_commit: str,
+                revision: str, target: Target) -> Optional[dict]:
+    """Does `blame_commit` merely MOVE code that existed earlier elsewhere?
+
+    Standalone-mode correction for the case where git's rename detection
+    failed (partial move): blame credits commit O with introducing the
+    line at its CURRENT path, but the symbol existed at another path in
+    O's parent. Loads the source index at O^ (memoized, one ls-tree +
+    one cat-file batch) and matches symbols by (kind, leaf) + structural
+    continuity, requiring removal from the source (a move, not a copy).
+    Returns a Movement-style dict on a confirmed match, else None.
+
+    Only the strongest signal is trusted: a genuine introduction has no
+    matching symbol anywhere in O^'s tree, so this is a no-op there.
+    """
+    # The parent's metadata is almost always already cached (the blamed
+    # commit is in the target file's commit list). Only fall back to a
+    # fresh fetch for commits outside that list.
+    ci = memo.commit_map.get(blame_commit)
+    if ci is None:
+        from .history import commit_info
+        ci = commit_info(repo, blame_commit)
+    if ci is None or not ci.parents:
+        return None
+    parent = ci.parents[0]
+    if parent == revision:
+        return None
+    sym = enclosing_symbol(repo, revision, target, memo)
+    if sym is None:
+        return None
+    leaf = _leaf(sym.name)
+
+    # Cheap pre-filter (ONE git grep call, no blob fetch): only load the
+    # parent's source index when some file at the parent could DEFINE this
+    # name. A genuine introduction has no such file -> zero extra index
+    # work. POSIX ERE has no \b; require a non-identifier char or EOL
+    # after the name so `def authenticate_other` cannot match.
+    pat = rf"(def|class)[[:space:]]+{re.escape(leaf)}([^[:alnum:]_]|$)"
+    hits = try_git_output(["grep", "-l", "-z", "-E", pat, parent,
+                           "--", "*.py"], cwd=repo.root)
+    if not hits:
+        return None
+    # `git grep -l <rev>` prefixes every path with "<sha>:" - strip it
+    # before the path lookup (paths themselves are NUL-delimited).
+    _SHA_PREFIX = re.compile(r"^[0-9a-f]{40}:")
+    hit_paths = []
+    for p in hits.split("\x00"):
+        p = _SHA_PREFIX.sub("", p)
+        if p and p != target.file:
+            hit_paths.append(p)
+    if not hit_paths:
+        return None
+    sources_before = memo.py_sources_limited(repo, parent, hit_paths)
+    if not sources_before:
+        return None
+    sources_after = memo.py_sources(repo, revision)
+
+    key = (sym.kind, leaf)
+    candidates = []
+    for path, content in sources_before.items():
+        for s in extract_symbols(content, path):
+            if (s.kind, _leaf(s.name)) != key:
+                continue
+            # Source implementation must be gone from the blamed commit's
+            # tree (name absent, or only a diverged stub remains).
+            after_syms = [x for p, c in sources_after.items()
+                          for x in extract_symbols(c, p)]
+            if not _source_removed(sources_before, s, after_syms,
+                                   sources_after):
+                continue
+            score = _continuity(
+                _symbol_body(content, s),
+                _symbol_body(sources_after.get(target.file, ""), sym))
+            candidates.append((score, path, s))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda t: -t[0])
+    best_score, best_path, best_sym = candidates[0]
+    runner_up = candidates[1][0] if len(candidates) > 1 else 0.0
+    if best_score < _STRONG_SIMILARITY \
+            or best_score - runner_up < _MARGIN:
+        return None  # weak or ambiguous - do not claim a move
+    return {
+        "type": "CODE_MOVEMENT",
+        "source_path": best_path,
+        "source_symbol": best_sym.name,
+        "dest_path": target.file,
+        "dest_symbol": sym.name,
+        "moved_by": blame_commit,
+        "origin": None,       # caller blames the source range to fill this
+        "origin_path": best_path,
+        "confidence": "HIGH",
+        "signals": [f"symbol identity ({sym.kind} {_leaf(sym.name)})",
+                     f"structural similarity {best_score:.2f}",
+                     "removed from source file",
+                     "blame credits the move commit, not the introduction"],
+        # Internal fields for the caller's origin tracing (stripped before
+        # rendering): the source symbol's range and the mover's parent.
+        "_parent": parent,
+        "_source_start": best_sym.start_line,
+        "_source_end": best_sym.end_line,
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -175,6 +175,62 @@ class TestCallerGitCallBound(unittest.TestCase):
             fx.cleanup()
 
 
+class TestMovementGitCallBound(unittest.TestCase):
+    """Phase 2D: movement analysis must stay bounded.
+
+    The standalone origin check is gated behind ONE git grep pre-filter
+    (no blob fetch when no candidate exists) and the chain walk is capped
+    at a bounded number of per-commit diffs. A moved-file analysis must
+    not explode into per-commit / per-symbol loops.
+    """
+
+    def test_standalone_why_on_moved_file_bounded(self):
+        from agent_blame.analyzer import AnalysisMemo, analyze
+        from agent_blame.models import Target
+        from tests.gitfixture import make_movement_partial_fixture
+        fx = make_movement_partial_fixture()
+        try:
+            repo = discover_repository(fx.root)
+            counter = _CountingGit()
+            counter.install()
+            try:
+                res = analyze(repo, Target(file="new.py", start_line=1,
+                                           end_line=2), memo=AnalysisMemo())
+            finally:
+                counter.restore()
+            self.assertIsNotNone(res.movement)
+            self.assertLessEqual(
+                counter.count, 30,
+                f"{counter.count} git calls for one moved-file analysis - "
+                f"the origin check must be a grep pre-filter, not a scan")
+        finally:
+            fx.cleanup()
+
+    def test_commit_movement_shared_index(self):
+        # Boundary movements fetch the changed-path sources ONCE per
+        # (revision, paths) key; analyzing the move commit twice reuses
+        # the index (no re-scan per run).
+        from agent_blame.analyzer import AnalysisMemo
+        from agent_blame.commit import analyze_commit
+        from tests.gitfixture import make_movement_commit_fixture
+        fx = make_movement_commit_fixture()
+        try:
+            repo = discover_repository(fx.root)
+            counter = _CountingGit()
+            counter.install()
+            try:
+                analyze_commit(repo, fx.shas["B"], memo=AnalysisMemo())
+                total = counter.count
+            finally:
+                counter.restore()
+            self.assertLessEqual(
+                total, 40,
+                f"{total} git calls for the partial-move commit analysis - "
+                f"boundary movement must be path-restricted and memoized")
+        finally:
+            fx.cleanup()
+
+
 class TestMemoReuse(unittest.TestCase):
     """Shared AnalysisMemo must prevent duplicate file-history fetches."""
 

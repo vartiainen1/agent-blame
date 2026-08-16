@@ -46,6 +46,9 @@ from .git import GitError, git_output, try_git_output
 from .history import commit_info, file_exists_at, later_commits_after
 from .models import (AnalysisResult, CommitChange, CommitResult, DiffGroup,
                      Target)
+from .movement import (boundary_movements, group_movement,
+                       intersecting_movement, moved_symbol_group,
+                       public_movement, rename_movement)
 from .repository import Repository
 
 
@@ -257,6 +260,31 @@ def analyze_commit(repo: Repository, rev: str,
                          if _is_test_path(m["path"]))
     change_map = {m["path"]: m["status"] for m in file_meta}
 
+    # --- Movement (Phase 2D): which of this commit's changes are MOVES?
+    # Symbol-level continuity between baseline and commit, restricted to
+    # the changed paths (a move's source and destination are both in the
+    # change by definition, so the scan is proportional to the change
+    # size). A confirmed move is classified, never re-reported as an
+    # introduction: added ranges belonging to a moved symbol are analyzed
+    # against the SOURCE at the baseline instead of "no previous version".
+    rename_map = {m["path"]: m["old_path"] for m in file_meta
+                  if m["status"] in ("R", "C") and m["old_path"]}
+    boundary_mv: Dict[str, List[dict]] = {}
+    if baseline is not None and not is_merge:
+        before_paths = sorted({m.get("old_path") or m["path"]
+                               for m in file_meta
+                               if m["status"] in ("A", "M", "R", "C", "D")})
+        after_paths = sorted({m["path"] for m in file_meta
+                              if m["status"] in ("A", "M", "R", "C")})
+        if before_paths and after_paths:
+            try:
+                before = memo.py_sources_limited(repo, baseline, before_paths)
+                after = memo.py_sources_limited(repo, ci.sha, after_paths)
+                boundary_mv = boundary_movements(
+                    repo, memo, before, after, rename_map, revision=baseline)
+            except GitError:
+                boundary_mv = {}
+
     for meta in file_meta:
         status = meta["status"]
         path = meta["path"]
@@ -324,11 +352,31 @@ def analyze_commit(repo: Repository, rev: str,
                                     or not file_exists_at(repo, baseline, path))
 
         groups: List[DiffGroup] = []
+        file_mvs = boundary_mv.get(path, [])
         for h in hunks:
             changes, added, deleted = _classify_changes(
                 h["old_changed"], h["new_changed"], old_map, new_map,
                 h["old_start"], h["new_start"])
             old_changed = h["old_changed"]
+
+            # Moved symbol in this hunk's NEW range: analyze the SOURCE
+            # at the baseline instead of reporting "no previous version".
+            # The mover is never the introduction (Phase 2D core rule).
+            # Moved-symbol handling applies to ADDED ranges only (no old
+            # side at the destination): a hunk with genuine old-side
+            # changes keeps the normal modification/deletion analysis.
+            mv = None
+            if not old_changed:
+                mv = intersecting_movement(
+                    file_mvs, h["new_start"],
+                    h["new_start"] + h["new_count"] - 1)
+                if mv is not None:
+                    m_group = moved_symbol_group(
+                        repo, memo, path, mv, h, changes, ci.sha, baseline,
+                        mode="commit", change_map=change_map)
+                    if m_group is not None:
+                        groups.append(m_group)
+                        continue
 
             if is_new:
                 groups.append(_new_file_group(repo, path, h, changes, added,
@@ -395,6 +443,26 @@ def analyze_commit(repo: Repository, rev: str,
                 merged.append(g)
 
         change.groups = merged
+
+        # Per-change movement (Phase 2D): strongest signal first - a
+        # symbol-level move is more specific than the file-level rename.
+        if file_mvs:
+            change.movement = public_movement(
+                group_movement(path, file_mvs[0], ci.sha))
+        elif status == "R" and old_path:
+            mv = rename_movement(old_path, path, _analysis_origin(change))
+            mv["moved_by"] = ci.sha
+            change.movement = mv
         result.changes.append(change)
 
     return result
+
+
+def _analysis_origin(change: CommitChange) -> Optional[str]:
+    """The introducing commit of the analyzed code, from the first blame
+    fact of the change's groups (used for pure-rename origin)."""
+    for g in change.groups:
+        for f in g.analysis.get("facts", []):
+            if f.get("kind") == "blame":
+                return f.get("commit")
+    return None
