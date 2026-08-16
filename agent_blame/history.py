@@ -29,19 +29,23 @@ _FIELDS = ["sha", "author", "author_email", "author_date", "subject", "body", "p
 _COMMIT_FORMAT_NUL = _COMMIT_FORMAT + "%x00"
 
 
-def blame_target(repo: Repository, target: Target) -> List[BlameLine]:
+def blame_target(repo: Repository, target: Target,
+                 revision: str = "HEAD") -> List[BlameLine]:
     """Run `git blame` on the target line range, return per-line facts.
 
     Uses --line-porcelain (stable machine format) with -w so whitespace
-    moves do not count as introductions. Returns [] when the file does not
-    exist at HEAD (caller decides how to handle that).
+    moves do not count as introductions. Blames against `revision`
+    (default HEAD); commit mode blames against the target commit's parent
+    so the introducing commit of the PREVIOUS behavior is found, never the
+    commit being analyzed. Returns [] when the file does not exist at that
+    revision (caller decides how to handle that).
     """
     file = target.file
     lines = git_lines(
         [
             "blame", "--line-porcelain", "-w",
             "-L", f"{target.start_line},{target.end_line}",
-            "HEAD", "--", file,
+            revision, "--", file,
         ],
         cwd=repo.root,
     )
@@ -120,30 +124,25 @@ def _iso_from_epoch(ts: int) -> str:
         "%Y-%m-%dT%H:%M:%SZ")
 
 
-def file_commits(repo: Repository, file: str,
-                 follow: bool = True, max_count: int = 200) -> List[CommitInfo]:
-    """List commits touching `file`, newest first, following renames.
+def parse_commit_records(raw: str) -> List[CommitInfo]:
+    """Parse `git log --format=%H%x01...%x00` output into CommitInfo rows.
 
-    Returns up to `max_count` commits, metadata batched into ONE `git log`
-    call (N+1 avoidance: no per-commit subprocess). On a shallow repo this
-    returns only the history available locally - the caller is expected to
-    detect and report that (LIMITED HISTORY).
+    The record terminator is NUL (cannot appear in git object content);
+    git appends a newline after each NUL, so every record except the first
+    carries a leading newline - `strip()` removes it (SHA-integrity fix:
+    without it, every sha after the first is corrupted with a \n prefix
+    and never matches blame shas).
     """
-    args = ["log", f"-{max_count}"]
-    if follow:
-        args.append("--follow")
-    args += [f"--format={_COMMIT_FORMAT_NUL}", "--", file]
-
-    raw = git_output(args, cwd=repo.root)
     out: List[CommitInfo] = []
     for record in raw.split("\x00"):
-        record = record.strip()  # git appends \n after each %x00 terminator
+        record = record.strip()
         if not record:
             continue
         fields = record.split("\x01")
         if len(fields) < 7:
             continue
         d = dict(zip(_FIELDS, fields))
+        parents = [p for p in d["parents"].split() if p]
         out.append(CommitInfo(
             sha=d["sha"],
             subject=d["subject"],
@@ -151,9 +150,32 @@ def file_commits(repo: Repository, file: str,
             author=d["author"],
             author_email=d["author_email"],
             author_date=d["author_date"],
-            is_merge=bool(d["parents"].strip().count(" ")),
+            parents=parents,
+            is_merge=len(parents) > 1,
         ))
     return out
+
+
+def file_commits(repo: Repository, file: str,
+                 revision: str = "HEAD",
+                 follow: bool = True, max_count: int = 200) -> List[CommitInfo]:
+    """List commits touching `file`, newest first, following renames.
+
+    Walks from `revision` (default HEAD); commit mode passes the parent of
+    the analyzed commit so the returned history is strictly BEFORE the
+    target commit - the target can never appear as a later modification of
+    its own change. Returns up to `max_count` commits, metadata batched
+    into ONE `git log` call (N+1 avoidance). On a shallow repo this
+    returns only the history available locally - the caller is expected to
+    detect and report that (LIMITED HISTORY).
+    """
+    args = ["log", f"-{max_count}"]
+    if follow:
+        args.append("--follow")
+    args += [f"--format={_COMMIT_FORMAT_NUL}", revision, "--", file]
+
+    raw = git_output(args, cwd=repo.root)
+    return parse_commit_records(raw)
 
 
 def commit_info(repo: Repository, sha: str) -> Optional[CommitInfo]:
@@ -170,6 +192,7 @@ def commit_info(repo: Repository, sha: str) -> Optional[CommitInfo]:
     if len(fields) < 7:
         return None
     d = dict(zip(_FIELDS, fields))
+    parents = [p for p in d["parents"].split() if p]
     return CommitInfo(
         sha=d["sha"],
         subject=d["subject"],
@@ -177,7 +200,8 @@ def commit_info(repo: Repository, sha: str) -> Optional[CommitInfo]:
         author=d["author"],
         author_email=d["author_email"],
         author_date=d["author_date"],
-        is_merge=bool(d["parents"].strip().count(" ")),
+        parents=parents,
+        is_merge=len(parents) > 1,
     )
 
 
@@ -232,21 +256,24 @@ def commit_diff_for_file(repo: Repository, sha: str, file: str) -> Optional[Comm
                       added_lines=added, removed_lines=removed)
 
 
-def file_diff_stats(repo: Repository, file: str) -> Dict[str, Tuple[int, int]]:
+def file_diff_stats(repo: Repository, file: str,
+                    revision: str = "HEAD") -> Dict[str, Tuple[int, int]]:
     """Per-commit added/removed counts for `file` in ONE git call.
 
-    Uses `git log --numstat`: git already computes the counts we need for
-    regression/removal counter-evidence, so we never fetch N individual
-    diffs (the old N+1). Format: each commit is `sha\0` followed by one
-    `added\tremoved\tpath` line per file in that commit's diff; a commit
-    may contribute multiple lines (multi-file commits).
+    Uses `git log --numstat <revision>`: git already computes the counts
+    we need for regression/removal counter-evidence, so we never fetch N
+    individual diffs (the old N+1). The revision defaults to HEAD; commit
+    mode passes the target's parent so the counts describe the history
+    BEFORE the analyzed commit. Format: each commit is `sha\0` followed by
+    one `added\tremoved\tpath` line per file in that commit's diff; a
+    commit may contribute multiple lines (multi-file commits).
 
     Returns {sha: (added, removed)}. Note: counts can differ by ±1 from
     show-based counting on files whose line endings were normalized
     (git counts a missing trailing newline differently) - documented
     limitation, immaterial to the 0/5/ratio thresholds used here.
     """
-    args = ["log", "--numstat", "--format=%H%x00", "--", file]
+    args = ["log", "--numstat", "--format=%H%x00", revision, "--", file]
     try:
         raw = git_output(args, cwd=repo.root)
     except GitError:
@@ -273,9 +300,35 @@ def file_diff_stats(repo: Repository, file: str) -> Dict[str, Tuple[int, int]]:
     return out
 
 
+def file_exists_at(repo: Repository, revision: str, file: str) -> bool:
+    """True if `file` exists at `revision` (e.g. "HEAD" or a commit sha)."""
+    return try_git_output(["cat-file", "-e", f"{revision}:{file}"],
+                          cwd=repo.root) is not None
+
+
 def file_exists_at_head(repo: Repository, file: str) -> bool:
     """True if `file` exists at HEAD."""
-    return try_git_output(["cat-file", "-e", f"HEAD:{file}"], cwd=repo.root) is not None
+    return file_exists_at(repo, "HEAD", file)
+
+
+def later_commits_after(repo: Repository, sha: str, file: str,
+                        max_count: int = 30) -> List[CommitInfo]:
+    """Commits that touched `file` AFTER `sha` (reachable from HEAD but not
+    from `sha`), newest first, bounded to `max_count`.
+
+    Used by commit mode for the "after this commit" scan: later commits
+    can show whether the target's change was subsequently fixed, reverted
+    or reworked. This is ONE batched `git log <sha>..HEAD` call (metadata
+    included); `sha..HEAD` is empty when the target is HEAD itself. Returns
+    [] on failure (e.g. shallow truncation) - absence is a legitimate
+    answer.
+    """
+    args = ["log", f"-{max_count}", f"--format={_COMMIT_FORMAT_NUL}",
+            f"{sha}..HEAD", "--", file]
+    raw = try_git_output(args, cwd=repo.root)
+    if raw is None:
+        return []
+    return parse_commit_records(raw)
 
 
 def head_commit(repo: Repository) -> Optional[CommitInfo]:

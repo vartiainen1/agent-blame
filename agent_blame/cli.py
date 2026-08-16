@@ -8,6 +8,8 @@ Usage (spec section 30 + Phase 2A):
   agent-blame --diff                   DIFF mode: historical context for the
                                        current working-tree changes
   agent-blame --diff --staged          DIFF mode for staged changes only
+  agent-blame --commit <rev>           COMMIT mode: historical context for
+                                       one commit (sha/abbrev/HEAD/HEAD~1)
   agent-blame --json <target>          machine-readable JSON
   agent-blame --verbose <target>       verbose terminal output
 
@@ -24,7 +26,8 @@ from . import __version__
 from .analyzer import analyze
 from .diff import analyze_diff
 from .models import Target
-from .output import render_diff_terminal, render_json, render_terminal, sanitize
+from .output import (render_commit_terminal, render_diff_terminal,
+                     render_json, render_terminal, sanitize)
 from .repository import discover_repository, resolve_repo_path
 from .target import TargetError, parse_target
 
@@ -47,6 +50,9 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="historical change/removal risk analysis")
     p.add_argument("--diff", action="store_true",
                    help="DIFF mode: analyze the current working-tree changes")
+    p.add_argument("--commit", metavar="REV", default=None,
+                   help="COMMIT mode: analyze a specific commit (sha, "
+                        "abbrev, HEAD, HEAD~1, ...)")
     p.add_argument("--staged", action="store_true",
                    help="with --diff: analyze staged changes (git diff --cached)")
     p.add_argument("--json", action="store_true",
@@ -60,6 +66,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _resolve_mode(args) -> str:
+    if args.commit:
+        if args.diff or args.history or args.risk or args.target:
+            raise TargetError("--commit cannot be combined with --diff, "
+                              "--history, --risk or a target")
+        return "commit"
+    if args.staged and not args.diff:
+        raise TargetError("--staged only applies to --diff")
     if args.diff and (args.history or args.risk):
         raise TargetError("--diff cannot be combined with --history or --risk")
     if args.history and args.risk:
@@ -91,6 +104,9 @@ def main(argv=None) -> int:
 
     if mode == "diff":
         return _run_diff(args)
+
+    if mode == "commit":
+        return _run_commit(args)
 
     if args.target is None:
         parser.print_help()
@@ -149,6 +165,43 @@ def _run_diff(args) -> int:
         print(render_json(result), end="")
     else:
         print(render_diff_terminal(result, verbose=args.verbose), end="")
+    return 0
+
+
+def _run_commit(args) -> int:
+    """COMMIT mode: analyze the historical context of one commit.
+
+    The revision argument is treated as untrusted input: values starting
+    with "-" are rejected outright so they can never be interpreted as
+    git options (argv-based git calls would otherwise pass them through).
+    """
+    rev = args.commit
+    if rev.startswith("-"):
+        print("agent-blame: error: commit revision cannot start with '-'",
+              file=sys.stderr)
+        return 2
+
+    start = os.path.abspath(args.cwd) if args.cwd else os.getcwd()
+    repo = discover_repository(start)
+    if repo is None:
+        print(
+            "agent-blame: error: not inside a git repository "
+            f"(looked up from {sanitize(start)})",
+            file=sys.stderr,
+        )
+        return 1
+
+    from .commit import CommitError, analyze_commit
+    try:
+        result = analyze_commit(repo, rev)
+    except CommitError as e:
+        print(f"agent-blame: error: {sanitize(str(e))}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(render_json(result), end="")
+    else:
+        print(render_commit_terminal(result, verbose=args.verbose), end="")
     return 0
 
 

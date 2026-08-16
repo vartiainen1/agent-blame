@@ -556,3 +556,186 @@ def make_diff_whitespace_fixture() -> GitFixture:
         "    return fn()\n"
     ))
     return f
+
+
+# ---------------------------------------------------------------------------
+# Phase 2B: --commit fixtures. Each records the exact shas in `f.shas` so
+# tests can assert chronology (the analyzed commit must never be credited
+# as the origin of the behavior it changes).
+# ---------------------------------------------------------------------------
+
+def make_commit_evolution_fixture() -> GitFixture:
+    """Commit fixture: A introduces, B fixes, C adds a regression test.
+
+    Analyzing B must attribute the line B changes to A (the introducer of
+    the PREVIOUS behavior) and never to B itself; the after-scan must show
+    C as a later commit touching the file.
+    """
+    f = GitFixture()
+    a = f.commit("Add rate-limit handling", {
+        "src/retry.py": (
+            "def retry(fn, n=7):\n"
+            "    import time\n"
+            "    time.sleep(13)\n"
+            "    return fn()\n"
+        ),
+    })
+    b = f.commit("Fix retry timing for 429s", {
+        "src/retry.py": (
+            "def retry(fn, n=7):\n"
+            "    import time\n"
+            "    time.sleep(7)\n"
+            "    return fn()\n"
+        ),
+    })
+    c = f.commit("Add retry regression test", {
+        "tests/test_retry.py": "def test_429_backoff():\n    assert True\n",
+    })
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_commit_revert_fixture() -> GitFixture:
+    """Commit fixture: A introduces, B changes, C reverts B (standard trailer).
+
+    Analyzing C (spec section 21) must:
+      - expose revert_of == B (deterministic message reference)
+      - attribute the previous behavior to B, never to C
+      - not contain C anywhere in the before-state facts/history
+    """
+    f = GitFixture()
+    a = f.commit("Add retry logic", {
+        "app/retry.py": "def retry(fn):\n    return fn()\n",
+    })
+    b = f.commit("Add timeout to retry", {
+        "app/retry.py": "def retry(fn, timeout=5):\n    return fn()\n",
+    })
+    c = f.commit(
+        'Revert "Add timeout to retry"\n\nThis reverts commit ' + b + ".",
+        {"app/retry.py": "def retry(fn):\n    return fn()\n"},
+    )
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_commit_root_fixture() -> GitFixture:
+    """Commit fixture: the repository's root commit (no parent)."""
+    f = GitFixture()
+    a = f.commit("Initial commit", {
+        "README.md": "# hi\n",
+        "src/init.py": "x = 1\n",
+    })
+    f.shas = {"A": a}
+    return f
+
+
+def make_commit_add_fixture() -> GitFixture:
+    """Commit fixture: B adds a brand-new file (no base version)."""
+    f = GitFixture()
+    a = f.commit("Add module", {"src/mod.py": "m = 1\n"})
+    b = f.commit("Add tests", {"tests/test_mod.py": "def test_m():\n    assert True\n"})
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_commit_delete_fixture() -> GitFixture:
+    """Commit fixture: B deletes a file with known history."""
+    f = GitFixture()
+    a = f.commit("Add parser", {"src/parser.py": "def parse(s):\n    return s\n"})
+    b = f.rm("src/parser.py", "Remove parser")
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_commit_rename_fixture() -> GitFixture:
+    """Commit fixture: C renames src/auth.py -> src/security/session.py.
+
+    The analysis must follow the history through the pre-rename path.
+    """
+    f = GitFixture()
+    a = f.commit("Add auth module", {"src/auth.py": "def login():\n    return True\n"})
+    b = f.commit("Fix auth bug", {"src/auth.py": "def login():\n    return False\n"})
+    c = f.mv("src/auth.py", "src/security/session.py", "Move auth to security")
+    f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_commit_multi_fixture() -> GitFixture:
+    """Commit fixture: B changes TWO files; one has multiple hunks sharing
+    the same introducing commit (must merge into one group)."""
+    f = GitFixture()
+    a = f.commit("Add modules", {
+        "src/multi.py": (
+            "alpha = 1\nbeta = 2\ngamma = 3\ndelta = 4\nepsilon = 5\n"
+            "zeta = 6\neta = 7\ntheta = 8\niota = 9\nkappa = 10\n"
+        ),
+        "src/other.py": "x = 1\n",
+    })
+    b = f.commit("Wire modules together", {
+        "src/multi.py": (
+            "alpha = 100\nbeta = 2\ngamma = 300\ndelta = 4\nepsilon = 500\n"
+            "zeta = 6\neta = 700\ntheta = 8\niota = 900\nkappa = 10\n"
+        ),
+        "src/other.py": "x = 1\nimport multi\n",
+    })
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_commit_binary_fixture() -> GitFixture:
+    """Commit fixture: B adds a binary file (content must not be parsed)."""
+    f = GitFixture()
+    a = f.commit("Add module", {"src/mod.py": "m = 1\n"})
+    with open(os.path.join(f.root, "src/data.bin"), "wb") as fh:
+        fh.write(b"\x00\x01\x02\xffBINARY\x00")
+    f._run("add", "--", "src/data.bin")
+    b = f.commit("Add binary blob")
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_commit_unicode_fixture() -> GitFixture:
+    """Commit fixture: B modifies a file with a Unicode path."""
+    f = GitFixture()
+    a = f.commit("Add unicode module", {"src/ünïcode/mod.py": "value = 1\n"})
+    b = f.commit("Fix unicode module", {"src/ünïcode/mod.py": "value = 2\n"})
+    f.shas = {"A": a, "B": b}
+    return f
+
+
+def make_commit_reverted_later_fixture() -> GitFixture:
+    """Commit fixture: A adds, B changes, C changes again, D reverts C.
+
+    Analyzing C: the AFTER-scan must surface D as a later revert of this
+    change (contradictory signal), while C itself stays out of the
+    before-state facts.
+    """
+    f = GitFixture()
+    a = f.commit("Add retry logic", {
+        "app/retry.py": "def retry(fn):\n    return fn()\n",
+    })
+    b = f.commit("Add timeout", {
+        "app/retry.py": "def retry(fn, timeout=5):\n    return fn()\n",
+    })
+    c = f.commit("Fix timeout to 10", {
+        "app/retry.py": "def retry(fn, timeout=10):\n    return fn()\n",
+    })
+    d = f.commit(
+        'Revert "Fix timeout to 10"\n\nThis reverts commit ' + c + ".",
+        {"app/retry.py": "def retry(fn, timeout=5):\n    return fn()\n"},
+    )
+    f.shas = {"A": a, "B": b, "C": c, "D": d}
+    return f
+
+
+def make_commit_malicious_fixture() -> GitFixture:
+    """Commit fixture: B's message carries ANSI/control sequences.
+
+    Terminal and JSON output must stay clean (sanitized) for --commit too.
+    """
+    f = GitFixture()
+    a = f.commit("Add module", {"src/mod.py": "m = 1\n"})
+    evil = "Fix thing \x1b[2J\x1b[H\r oops \x1b]0;EVIL\x07payload"
+    b = f.commit(evil, {"src/mod.py": "m = 2\n"})
+    f.shas = {"A": a, "B": b}
+    return f

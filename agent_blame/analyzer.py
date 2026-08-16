@@ -18,7 +18,8 @@ from .confidence import compute_confidence
 from .evidence import collect_evidence, dedupe_evidence, detect_counterevidence
 from .git import GitError
 from .graph import build_graph
-from .history import blame_target, file_commits, file_diff_stats, file_exists_at_head
+from .history import (blame_target, file_commits, file_diff_stats,
+                      file_exists_at)
 from .inference import infer_original_vs_current, infer_purpose
 from .models import AnalysisResult, Confidence, Inference, Target
 from .ranking import rank_evidence
@@ -37,40 +38,50 @@ class AnalysisMemo:
     """
 
     def __init__(self) -> None:
-        self._commits: dict = {}      # file -> List[CommitInfo]
-        self._stats: dict = {}        # file -> {sha: (added, removed)}
+        self._commits: dict = {}      # (file, revision) -> List[CommitInfo]
+        self._stats: dict = {}        # (file, revision) -> {sha: (added, removed)}
         self.commit_map: dict = {}    # sha -> CommitInfo (all fetched so far)
         self.diff_memo: dict = {}     # (sha, file) -> CommitDiff
 
-    def file_commits(self, repo: Repository, file: str):
-        """Commits touching `file`, fetched once per file and cached."""
-        if file not in self._commits:
-            commits = file_commits(repo, file)
-            self._commits[file] = commits
+    def file_commits(self, repo: Repository, file: str, revision: str = "HEAD"):
+        """Commits touching `file` before `revision`, fetched once per key."""
+        key = (file, revision)
+        if key not in self._commits:
+            commits = file_commits(repo, file, revision=revision)
+            self._commits[key] = commits
             for c in commits:
                 self.commit_map.setdefault(c.sha, c)
-        return self._commits[file]
+        return self._commits[key]
 
-    def file_stats(self, repo: Repository, file: str):
-        """Per-commit added/removed counts for `file`, one git call per file."""
-        if file not in self._stats:
-            self._stats[file] = file_diff_stats(repo, file)
-        return self._stats[file]
+    def file_stats(self, repo: Repository, file: str, revision: str = "HEAD"):
+        """Per-commit added/removed counts for `file`, one git call per key."""
+        key = (file, revision)
+        if key not in self._stats:
+            self._stats[key] = file_diff_stats(repo, file, revision=revision)
+        return self._stats[key]
 
 
 def analyze(repo: Repository, target: Target, mode: str = "why",
-            memo: AnalysisMemo = None) -> AnalysisResult:
+            memo: AnalysisMemo = None,
+            revision: str = "HEAD") -> AnalysisResult:
     """Run the full pipeline for one target.
 
     Handles the known edge cases:
-      - file does not exist at HEAD -> warning, history-only analysis
+      - file does not exist at the analyzed revision -> warning,
+        history-only analysis
       - shallow clone -> LIMITED HISTORY warning
       - unborn repo / no commits -> INSUFFICIENT with warning
       - target line beyond the file's length -> clean warning, INSUFFICIENT
 
     `memo` (optional) shares commit/diff caches across calls - pass the
-    same AnalysisMemo when analyzing several targets from one run (diff
-    mode) so git facts are fetched at most once.
+    same AnalysisMemo when analyzing several targets from one run (diff /
+    commit mode) so git facts are fetched at most once.
+
+    `revision` anchors the analysis: blame and the "commits touching this
+    file" walk run against `revision` instead of HEAD. Commit mode passes
+    the target commit's parent so the analysis describes the state BEFORE
+    the commit; the commit itself can then never be mis-attributed as the
+    introducer of the behavior it changes (chronology correctness).
 
     INTEGRITY RULE: line-level evidence (blame, introducing commits, later
     modifications of the TARGET LINES, confidence, risk) is only produced
@@ -91,11 +102,11 @@ def analyze(repo: Repository, target: Target, mode: str = "why",
             "the original introduction may not be available locally."
         )
 
-    exists = file_exists_at_head(repo, target.file)
+    exists = file_exists_at(repo, revision, target.file)
     if not exists:
         warnings.append(
-            f"file {target.file} does not exist at HEAD; only historical "
-            f"evidence from remaining history is available."
+            f"file {target.file} does not exist at {revision}; only "
+            f"historical evidence from remaining history is available."
         )
 
     result = AnalysisResult(target=target, mode=mode,
@@ -105,7 +116,7 @@ def analyze(repo: Repository, target: Target, mode: str = "why",
     blame_lines = []
     if exists:
         try:
-            blame_lines = blame_target(repo, target)
+            blame_lines = blame_target(repo, target, revision=revision)
         except GitError as e:
             # e.g. line number beyond the file's length: git exits 128.
             # Never leak a traceback - a clean warning is the contract.
@@ -127,7 +138,7 @@ def analyze(repo: Repository, target: Target, mode: str = "why",
             })
 
     # --- Commits touching the file (fetched ONCE, reused everywhere) ----
-    commits = memo.file_commits(repo, target.file)
+    commits = memo.file_commits(repo, target.file, revision=revision)
     result.history = [_commit_row(c) for c in commits]
 
     # If the target lines could not be blamed, we have NO line-anchored
@@ -147,8 +158,8 @@ def analyze(repo: Repository, target: Target, mode: str = "why",
 
     # --- Evidence collection + ranking ----------------------------------
     # commit_map / diff_memo come from the shared memo when provided, so
-    # multiple targets in one run (diff mode) reuse every git fact.
-    stats = memo.file_stats(repo, target.file)
+    # multiple targets in one run (diff/commit mode) reuse every git fact.
+    stats = memo.file_stats(repo, target.file, revision=revision)
     evidence = collect_evidence(repo, target, graph, introducing, later,
                                 commit_map=memo.commit_map, diff_memo=memo.diff_memo,
                                 stats=stats)

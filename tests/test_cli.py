@@ -12,8 +12,11 @@ import subprocess
 import sys
 import unittest
 
-from tests.gitfixture import (make_diff_modify_fixture, make_evolution_fixture,
-                              make_introduction_fixture, make_malicious_message_fixture)
+from tests.gitfixture import (make_commit_evolution_fixture,
+                              make_commit_malicious_fixture,
+                              make_diff_modify_fixture, make_evolution_fixture,
+                              make_introduction_fixture,
+                              make_malicious_message_fixture)
 
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -176,6 +179,103 @@ class TestCliDiff(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertNotIn("Traceback", proc.stderr)
         self.assertIn("--diff", proc.stderr)
+
+
+class TestCliCommit(unittest.TestCase):
+    """--commit mode via the real CLI (output values, revision forms,
+    error handling - not just exit codes)."""
+
+    def setUp(self):
+        self.fx = make_commit_evolution_fixture()
+        self.cwd = self.fx.root
+
+    def tearDown(self):
+        self.fx.cleanup()
+
+    def test_commit_terminal_output_values(self):
+        proc = _run_cli(["--commit", self.fx.shas["B"]], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("COMMIT ANALYSIS", proc.stdout)
+        self.assertIn("Fix retry timing for 429s", proc.stdout)
+        self.assertIn("Baseline", proc.stdout)
+        self.assertIn("Historical change risk", proc.stdout)
+
+    def test_commit_json_output_values(self):
+        proc = _run_cli(["--commit", self.fx.shas["B"], "--json"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = jsonlib.loads(proc.stdout)
+        self.assertEqual(data["mode"], "commit")
+        self.assertEqual(data["commit"]["sha"], self.fx.shas["B"])
+        self.assertEqual(data["commit"]["parents"], [self.fx.shas["A"]])
+        self.assertTrue(data["changes"])
+        self.assertIn("analysis", data["changes"][0]["groups"][0])
+
+    def test_revision_forms(self):
+        # full sha, abbrev, HEAD, HEAD~1 all resolve.
+        self.assertEqual(_run_cli(["--commit", self.fx.shas["B"]], self.cwd).returncode, 0)
+        self.assertEqual(_run_cli(["--commit", self.fx.shas["B"][:10]], self.cwd).returncode, 0)
+        self.assertEqual(_run_cli(["--commit", "HEAD"], self.cwd).returncode, 0)
+        self.assertEqual(_run_cli(["--commit", "HEAD~1"], self.cwd).returncode, 0)
+        self.assertEqual(_run_cli(["--commit", "HEAD~2"], self.cwd).returncode, 0)
+
+    def test_invalid_revision_clean_error(self):
+        proc = _run_cli(["--commit", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"], self.cwd)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn("could not resolve commit", proc.stderr)
+
+    def test_dash_revision_rejected(self):
+        proc = _run_cli(["--commit=-x"], self.cwd)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn("-", proc.stderr)
+
+    def test_commit_conflicts_with_target(self):
+        proc = _run_cli(["--commit", "HEAD", "src/retry.py:3"], self.cwd)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn("--commit", proc.stderr)
+
+    def test_commit_conflicts_with_diff(self):
+        proc = _run_cli(["--commit", "HEAD", "--diff"], self.cwd)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+
+    def test_commit_no_repo_clean_error(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = _run_cli(["--commit", "HEAD"], tmp)
+            self.assertEqual(proc.returncode, 1)
+            self.assertNotIn("Traceback", proc.stderr)
+            self.assertIn("not inside a git repository", proc.stderr)
+
+
+class TestCliCommitSecurity(unittest.TestCase):
+    """Malicious commit message must not leak control chars via --commit."""
+
+    def setUp(self):
+        self.fx = make_commit_malicious_fixture()
+        self.cwd = self.fx.root
+
+    def tearDown(self):
+        self.fx.cleanup()
+
+    def test_terminal_output_clean(self):
+        proc = _run_cli(["--commit", self.fx.shas["B"]], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        for ch in proc.stdout:
+            if ch in "\n\t":
+                continue
+            self.assertGreaterEqual(ord(ch), 0x20,
+                                    f"control char {ord(ch):#x} in CLI output")
+
+    def test_json_output_clean(self):
+        proc = _run_cli(["--commit", self.fx.shas["B"], "--json"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = jsonlib.loads(proc.stdout)
+        raw = jsonlib.dumps(data)
+        for ch in raw:
+            self.assertNotIn(ch, "\x1b\x07\x00")
 
 
 class TestCliSecurity(unittest.TestCase):

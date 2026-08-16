@@ -83,6 +83,36 @@ class TestDiffGitCallBound(unittest.TestCase):
             fx.cleanup()
 
 
+class TestCommitGitCallBound(unittest.TestCase):
+    """--commit mode must stay bounded too (no per-file/per-line loops).
+
+    Analyzing a 2-file commit (one with 5 changed hunks) over a tiny
+    history must stay under a small git-call budget; the batched metadata,
+    numstat and after-scan calls keep it deterministic.
+    """
+
+    def test_commit_analysis_bounded(self):
+        from agent_blame.commit import analyze_commit
+        from tests.gitfixture import make_commit_multi_fixture
+        fx = make_commit_multi_fixture()
+        try:
+            counter = _CountingGit()
+            counter.install()
+            try:
+                repo = discover_repository(fx.root)
+                self.assertIsNotNone(repo)
+                res = analyze_commit(repo, fx.shas["B"])
+            finally:
+                counter.restore()
+            self.assertEqual(len(res.changes), 2)
+            self.assertLessEqual(
+                counter.count, 35,
+                f"{counter.count} git calls exceeds the commit-mode budget "
+                f"- an N+1 (per-hunk subprocess loop) has likely regressed")
+        finally:
+            fx.cleanup()
+
+
 class TestMemoReuse(unittest.TestCase):
     """Shared AnalysisMemo must prevent duplicate file-history fetches."""
 

@@ -121,8 +121,13 @@ agent-blame --diff
 # DIFF, staged changes only (git diff --cached)
 agent-blame --diff --staged
 
+# COMMIT: historical context for a specific commit
+agent-blame --commit d037a21
+agent-blame --commit HEAD~1
+
 # JSON: machine-readable structured result
 agent-blame --json src/auth/session.py:142
+agent-blame --commit d037a21 --json
 
 # VERBOSE: per-evidence weights and reasons
 agent-blame --verbose src/auth/session.py:142
@@ -136,6 +141,7 @@ agent-blame --verbose src/auth/session.py:142
 | `--history` | ranked historical timeline for the target |
 | `--risk` | historical change/removal risk analysis |
 | `--diff` | DIFF mode: analyze the current working-tree changes |
+| `--commit REV` | COMMIT mode: analyze one commit (sha, abbrev, `HEAD`, `HEAD~1`, ...) |
 | `--staged` | with `--diff`: analyze staged changes (`git diff --cached`) |
 | `--json` | machine-readable JSON output (stable schema) |
 | `--verbose` | per-evidence weights and reasons |
@@ -248,8 +254,99 @@ mode. Machine consumers get complete per-commit evidence; nothing is lost.
 - Per-commit added/removed counts come from `git log --numstat`; counts can
   differ by ±1 from diff-based counting on files whose line endings were
   normalized — immaterial to the thresholds used.
-- Rename detection is git's own (`-M`); a pure rename with no content change
-  is reported without per-line analysis.
+- In `--diff` mode, a pure rename with no content change is reported without
+  per-line analysis. `--commit` mode instead analyzes the whole moved file
+  against the baseline (bounded by a size guard for binary blobs).
+
+---
+
+## COMMIT mode
+
+`agent-blame --commit <rev>` answers: *"what did this commit change, and
+what historical context explains those changes?"* It analyzes one commit
+against its parent (the baseline) and separates the timeline into three
+strictly distinct phases:
+
+```text
+BEFORE THIS COMMIT        (the baseline state, analyzed by the engine)
+   historical origin + evolution of the changed behavior
+        \/
+TARGET COMMIT             (the event - its diff vs the baseline)
+        \/
+AFTER THIS COMMIT         (bounded scan of later commits touching each file)
+```
+
+The revision argument accepts everything git itself resolves safely: full
+SHAs, abbreviated SHAs, `HEAD`, `HEAD~1`, and other commit-ishes. Values
+starting with `-` are rejected outright (they can never become git options).
+
+```text
+COMMIT ANALYSIS
+
+  Commit: d037a219  fix: start.py now picks the newest session note by date
+  Author: Buffy
+  Date: 2026-08-16T07:26:07+02:00
+  Parents: bb2dfd60
+  Baseline: bb2dfd60
+  Changed files: 4
+
+CHANGE  src/retry.py  (modified)
+
+  Changed: line 3
+    -    3      time.sleep(13)
+    +    3      time.sleep(7)
+  Historical context (before this commit)
+    • line 3 introduced by 18eea955: Add rate-limit handling
+
+  Related evidence
+    ✓ lines 3-3 introduced by 18eea955: Add rate-limit handling
+    ✓ current test file(s) reference this module: tests/test_retry.py
+
+  Counter-evidence
+    None found.
+
+  Historical change risk: MEDIUM
+  Confidence: MEDIUM
+
+  After this commit
+    · 2 later commit(s) touched this file after this commit (1 revert(s), 1 fix/regression-related)
+```
+
+### Chronology is guaranteed, not hoped for
+
+The before-state analysis blames the changed lines against the commit's
+**parent**, so the introducing commits are those of the *previous* behavior.
+The analyzed commit can never be credited as the origin of the change it
+makes. A revert commit correctly reports the reverted commit (`revert_of`)
+and attributes the previous behavior to that reverted commit.
+
+### How commits are handled
+
+- **Root commit** — no parent: every file is reported as new, with no
+  fabricated history, and a warning states there is no previous revision.
+- **Merge commit** — the first parent is the documented baseline (the
+  standard "merge diff" view), with a warning that full merge interpretation
+  is a documented limitation.
+- **Deleted files** — the old lines are analyzed against the baseline
+  revision, surfacing the deleted code's introducers and risk.
+- **Added files** — `NEW FILE`, no prior history; tests introduced with the
+  commit are reported as direct facts.
+- **Renames** — history follows the pre-rename path; a pure rename analyzes
+  the whole moved file (size-guarded for binary blobs).
+- **Binary files** — reported, never parsed.
+- **Reverts** — `revert_of` is derived from git's own structured
+  "This reverts commit <sha>" trailer (never from the word "revert" alone),
+  and blame independently confirms the reverted commit as the origin.
+
+### Commit JSON
+
+Commit mode keeps the same JSON conventions with `mode: "commit"`, a `commit`
+metadata section (sha, parents, author, date, subject, body, is_merge,
+is_root, revert_of), the baseline used as `parent`, and `changes[]` — one
+entry per changed file with the same `groups[]` structure as diff mode (each
+carrying the full before-state `analysis`), plus an `after` section holding
+the bounded later-commit scan. Existing WHY/HISTORY/RISK/DIFF JSON consumers
+are unaffected.
 
 ---
 
@@ -421,11 +518,17 @@ and trustworthy.
   "removed lines in this file" are flagged conservatively; exact line
   mapping across refactors is a documented limitation, not a claim of
   precision.
-- **Merge commits** are handled via git's own attribution (`git log
-  --follow`, which applies history simplification); a merge commit itself
-  may be omitted from a path-limited log even though commits from both
-  parents remain visible. Where attribution is ambiguous the tool says so
-  rather than manufacturing certainty.
+- **Merge commits** in `--commit` mode use the first parent as the baseline
+  (the standard "merge diff" view) and say so; full merge interpretation is
+  a documented limitation. In `--diff`/WHY modes, `git log --follow` applies
+  history simplification and a merge commit itself may be omitted from a
+  path-limited log even though commits from both parents remain visible.
+  Where attribution is ambiguous the tool says so rather than manufacturing
+  certainty.
+- **The after-commit scan is bounded** (newest 30 commits per file) and
+  limited to commits reachable from HEAD that are not ancestors of the
+  analyzed commit; on an unmerged branch this reflects HEAD's view of
+  "after".
 - Message-text signals (fix/regression/security word matches) are **weak**
   signals by design and never decisive on their own.
 - The tool does **not** perform formal static analysis; it is a historical
@@ -444,6 +547,7 @@ python -m unittest tests.test_git -v
 python -m unittest tests.test_analyzer -v
 python -m unittest tests.test_cli -v
 python -m unittest tests.test_diff -v
+python -m unittest tests.test_commit -v
 python -m unittest tests.test_perf -v
 ```
 
@@ -460,6 +564,7 @@ agent_blame/
   cli.py           argparse CLI
   analyzer.py      pipeline orchestration (+ AnalysisMemo for multi-target runs)
   diff.py          --diff mode: diff parsing, grouping, noise control
+  commit.py        --commit mode: revision-aware baseline + before/after chronology
   repository.py    repository discovery
   git.py           safe Git abstraction (no shell, timeouts)
   history.py       blame, commits, diffs (batched metadata + numstat)
@@ -488,8 +593,16 @@ findings without inventing evidence.
 The MVP deliberately stops at: repository discovery, safe Git, `file:line`
 targets, blame, introducing commits, commit diffs/metadata, relevant history,
 evidence model + ranking, confidence, basic counter-evidence, basic risk,
-JSON output, secure terminal output, and tests. Phase 2A adds `--diff` on top
-of the same single engine (one pipeline, multiple target selectors).
+JSON output, secure terminal output, and tests. Phase 2A added `--diff` and
+Phase 2B added `--commit` on top of the same single engine (one pipeline,
+many target selectors: `file:line`, `--history`, `--risk`, `--diff`,
+`--commit`).
+
+Phase 2 remaining: stronger revert/rename/code-movement tracking, caller and
+symbol relationships, regression detection, better counter-evidence,
+caching. Phase 3 candidates: merge-aware analysis, richer JSON, optional LLM
+explanation layer that explains the structured findings without inventing
+evidence.
 
 ---
 

@@ -52,17 +52,14 @@ def _scope_args(staged: bool) -> List[str]:
     return ["--cached"] if staged else []
 
 
-def collect_changed_files(repo: Repository, staged: bool = False) -> List[dict]:
-    """NUL-safe file metadata: status + paths from `git diff --name-status -z`.
+def _parse_name_status(raw: str) -> List[dict]:
+    """Parse `git diff --name-status -z` output into {status, path, old_path}.
 
-    Returns a list of dicts: {status, path, old_path}. Renames (R/C) carry
-    the previous path so the two-path diff form can be used for hunks.
-    Untracked files are listed separately by the caller (git diff ignores
-    them entirely).
+    -z output is NUL-separated (never quoted): status token, path, and for
+    renames/copies the old path. Works identically for worktree/staged
+    diffs and commit diffs (`git diff <parent> <sha>`) - the format is the
+    same.
     """
-    args = ["diff", *_scope_args(staged), "-M", "--no-ext-diff",
-            "--no-textconv", "--no-color", "--name-status", "-z"]
-    raw = git_output(args, cwd=repo.root)
     files: List[dict] = []
     tokens = raw.split("\x00")
     i = 0
@@ -89,6 +86,26 @@ def collect_changed_files(repo: Repository, staged: bool = False) -> List[dict]:
     return files
 
 
+def collect_changed_files(repo: Repository, staged: bool = False,
+                          revs: Optional[List[str]] = None) -> List[dict]:
+    """NUL-safe file metadata: status + paths from `git diff --name-status -z`.
+
+    Returns a list of dicts: {status, path, old_path}. Renames (R/C) carry
+    the previous path so the two-path diff form can be used for hunks.
+    Untracked files are listed separately by the caller (git diff ignores
+    them entirely).
+
+    `revs` switches the source from the working tree / index to a commit
+    pair `[parent, sha]` (used by commit mode); when given it replaces the
+    --cached scope selection entirely.
+    """
+    scope = _scope_args(staged) if revs is None else list(revs)
+    args = ["diff", *scope, "-M", "--no-ext-diff",
+            "--no-textconv", "--no-color", "--name-status", "-z"]
+    raw = git_output(args, cwd=repo.root)
+    return _parse_name_status(raw)
+
+
 def list_untracked(repo: Repository) -> List[str]:
     """Untracked files (git diff never shows them; report honestly)."""
     try:
@@ -100,15 +117,19 @@ def list_untracked(repo: Repository) -> List[str]:
 
 
 def _raw_diff_for_file(repo: Repository, staged: bool, status: str, path: str,
-                       old_path: Optional[str]) -> str:
+                       old_path: Optional[str],
+                       revs: Optional[List[str]] = None) -> str:
     """The unified diff text for one file (fetched once, parsed twice).
 
     For renames both paths are passed so git emits the rename form with
     hunks; for everything else the single path is enough. `staged` selects
-    the same scope as the top-level name-status call.
+    the same scope as the top-level name-status call; `revs` (a commit
+    pair) replaces it for commit mode, matching the top-level name-status
+    call exactly.
     """
+    scope = _scope_args(staged) if revs is None else list(revs)
     pathspec = [old_path, path] if status in ("R", "C") else [path]
-    args = ["diff", *_scope_args(staged), "-M", "--no-ext-diff",
+    args = ["diff", *scope, "-M", "--no-ext-diff",
             "--no-textconv", "--no-color", "--", *pathspec]
     return git_output(args, cwd=repo.root)
 
@@ -238,17 +259,19 @@ def _hunk_bodies(raw: str) -> Dict[str, Dict[int, str]]:
 
 def _analyze_region(repo: Repository, memo: AnalysisMemo,
                     path: str, old_path: Optional[str],
-                    old_start: int, old_end: int) -> AnalysisResult:
+                    old_start: int, old_end: int,
+                    revision: str = "HEAD", mode: str = "diff") -> AnalysisResult:
     """Run the existing pipeline on one changed region.
 
-    The target is the OLD side (previous revision) of the change: blame on
-    HEAD gives the introducing commit of the behavior being modified or
-    deleted. `old_path` is the HEAD path when the file was renamed (blame
-    must run against the name the file had at HEAD).
+    The target is the OLD side (previous revision) of the change: blame
+    against `revision` gives the introducing commit of the behavior being
+    modified or deleted. `old_path` is the path the file had at that
+    revision when it was renamed (blame must run against the old name).
+    Diff mode blames HEAD; commit mode passes the target commit's parent.
     """
     head_path = old_path or path
     target = Target(file=head_path, start_line=old_start, end_line=old_end)
-    return analyze(repo, target, mode="diff", memo=memo)
+    return analyze(repo, target, mode=mode, memo=memo, revision=revision)
 
 
 def analyze_diff(repo: Repository, staged: bool = False,

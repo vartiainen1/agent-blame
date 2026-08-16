@@ -58,8 +58,8 @@ class CommitInfo:
     author: str
     author_email: str
     author_date: str                # ISO-8601
-    files_changed: List[str] = field(default_factory=list)  # paths touched
-    is_merge: bool = False
+    parents: List[str] = field(default_factory=list)  # full shas
+    is_merge: bool = False          # more than one parent
 
     def to_dict(self) -> dict:
         return {
@@ -69,7 +69,7 @@ class CommitInfo:
             "author": self.author,
             "author_email": self.author_email,
             "author_date": self.author_date,
-            "files_changed": self.files_changed,
+            "parents": self.parents,
             "is_merge": self.is_merge,
         }
 
@@ -260,6 +260,66 @@ class DiffResult:
             "scope": self.scope,
             "repository": self.repository,
             "files": [f.to_dict() for f in self.files],
+            "warnings": self.warnings,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Commit mode (--commit)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CommitChange:
+    """One file changed by the analyzed commit.
+
+    `groups` reuses the DiffGroup structure from --diff (one analyzed
+    region per merged hunk group, with the full before-state pipeline
+    result in `analysis`). `after` holds the bounded scan of commits that
+    touched this file AFTER the target commit (chronologically separate
+    from the before-state analysis - never mixed into its evidence).
+    """
+
+    path: str                       # path in the target commit's tree
+    status: str                     # "A" | "D" | "M" | "R" | "C"
+    old_path: Optional[str] = None  # previous path for renames
+    groups: List[DiffGroup] = field(default_factory=list)
+    after: dict = field(default_factory=dict)  # later-history scan
+
+    def to_dict(self) -> dict:
+        return {
+            "path": self.path,
+            "status": self.status,
+            "old_path": self.old_path,
+            "groups": [g.to_dict() for g in self.groups],
+            "after": self.after,
+        }
+
+
+@dataclass
+class CommitResult:
+    """The full structured result of a --commit run.
+
+    `commit` is the metadata section (sha, parents, author, date, subject,
+    body, is_merge, is_root, revert_of). `parent` is the baseline used for
+    the before-state analysis (first parent for merges, None for the root
+    commit). `changes` is the per-file analysis; each group's `analysis`
+    carries its own evidence/confidence/risk.
+    """
+
+    sha: str
+    commit: dict = field(default_factory=dict)
+    parent: Optional[str] = None
+    changes: List[CommitChange] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "tool": "agent-blame",
+            "version": __version__,
+            "mode": "commit",
+            "commit": self.commit,
+            "parent": self.parent,
+            "changes": [c.to_dict() for c in self.changes],
             "warnings": self.warnings,
         }
 

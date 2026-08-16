@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import re
 
-from .models import AnalysisResult, DiffResult
+from .models import AnalysisResult, CommitResult, DiffResult
 
 # CSI: ESC [ params... final-byte (letters/@-~). Handles clear, cursor,
 # color, erase - anything a terminal would interpret.
@@ -347,10 +347,170 @@ def _render_group_changes(out: list, g, verbose: bool) -> None:
                    f"(use --json for the full list)")
 
 
+def render_commit_terminal(result: CommitResult, verbose: bool = False) -> str:
+    """Render a --commit result as human-readable terminal output.
+
+    One section per changed file; groups with identical evidence were
+    already merged by the analyzer (same noise control as --diff). The
+    before-state analysis (historical context, evidence, counter-evidence,
+    confidence, risk) is rendered from each group's pipeline result; the
+    after-state scan is shown separately and never mixed in. Every
+    repository string passes through sanitize().
+    """
+    meta = result.commit
+    out = [_b("COMMIT ANALYSIS"), ""]
+
+    out.append(_kv("Commit", f"{meta.get('short', '')}  {meta.get('subject', '')}"))
+    out.append(_kv("Author", meta.get("author", "")))
+    out.append(_kv("Date", meta.get("date", "")))
+    if meta.get("is_root"):
+        out.append(_kv("Parents", "none - root commit"))
+        out.append(_kv("Baseline", "none (no previous revision)"))
+    else:
+        parents = meta.get("parents", [])
+        out.append(_kv("Parents", ", ".join(p[:8] for p in parents)
+                       or "none"))
+        out.append(_kv("Baseline", (result.parent or "")[:8]
+                       + (" (first parent)" if meta.get("is_merge") else "")))
+    if meta.get("revert_of"):
+        out.append(_kv("Type", f"revert of {meta['revert_of'][:8]}"))
+    out.append(_kv("Changed files", str(len(result.changes))))
+    out.append("")
+
+    if not result.changes:
+        out.append("  No changes to analyze.")
+        for w in result.warnings:
+            out.append(f"  ! {sanitize(w)}")
+        return "\n".join(out) + "\n"
+
+    for c in result.changes:
+        status_name = {"A": "added", "D": "deleted", "M": "modified",
+                       "R": "renamed", "C": "copied"}.get(c.status, c.status)
+        header = f"CHANGE  {sanitize(c.path)}  ({status_name}"
+        if c.old_path and c.status in ("R", "C"):
+            header += f" from {sanitize(c.old_path)}"
+        header += ")"
+        out.append(_b(header))
+        out.append("")
+
+        for g in c.groups:
+            if g.new_file:
+                out.append("  New file in this commit - no prior history "
+                           f"({g.added_lines} line(s) added).")
+                for fct in g.analysis.get("facts", []):
+                    out.append(f"  ✓ {sanitize(fct.get('text', ''))}")
+                out.append("")
+                continue
+
+            a = g.analysis
+            conf = a.get("confidence", {})
+            risk = a.get("risk", {})
+
+            ranges_txt = []
+            for r in g.ranges:
+                old = r.get("old")
+                new = r.get("new")
+                if old:
+                    if old["start"] == old["end"]:
+                        ranges_txt.append(f"line {old['start']}")
+                    else:
+                        ranges_txt.append(f"lines {old['start']}-{old['end']}")
+                elif new:
+                    if new["start"] == new["end"]:
+                        ranges_txt.append(f"new line {new['start']}")
+                    else:
+                        ranges_txt.append(f"new lines {new['start']}-{new['end']}")
+            if ranges_txt:
+                out.append(f"  Changed: {', '.join(ranges_txt)}")
+            else:
+                out.append("  No textual changes (binary or pure rename).")
+            _render_group_changes(out, g, verbose)
+
+            # Historical context: introducing commits of the PREVIOUS
+            # behavior (blame ran against the baseline revision).
+            intro = [f for f in a.get("facts", []) if f.get("kind") == "blame"]
+            if intro:
+                out.append(_b("  Historical context (before this commit)"))
+                shown = set()
+                rendered = []
+                for fct in intro:
+                    key = fct.get("commit", "")
+                    if key in shown:
+                        continue
+                    shown.add(key)
+                    rendered.append(fct)
+                for fct in rendered[:10]:
+                    out.append(f"    • {sanitize(fct.get('text', ''))}")
+                if len(rendered) > 10:
+                    out.append(f"    ... {len(rendered) - 10} more introducing "
+                               f"commit(s)")
+                out.append("")
+
+            infs = a.get("inferences", [])
+            if infs:
+                out.append(_b("  Why (inferred)"))
+                for inf in infs:
+                    out.append(f"    · {sanitize(inf['text'])}")
+                out.append("")
+
+            ev = a.get("evidence", [])
+            out.append(_b("  Related evidence"))
+            if ev:
+                _render_evidence_aggregated(out, ev, verbose)
+            else:
+                out.append("    None found.")
+            out.append("")
+
+            cev = a.get("counter_evidence", [])
+            out.append(_b("  Counter-evidence"))
+            if cev:
+                for e in cev:
+                    out.append(f"    ✗ {sanitize(e['text'])}")
+            else:
+                out.append("    None found.")
+            out.append("")
+
+            out.append(_kv("Historical change risk", risk.get("level", "UNKNOWN")))
+            for r in risk.get("reasons", []):
+                out.append(f"      - {sanitize(r)}")
+            out.append(_kv("Confidence", conf.get("level", "INSUFFICIENT")))
+            out.append("")
+
+            for w in a.get("warnings", []):
+                out.append(f"  ! {sanitize(w)}")
+            out.append("")
+
+        # After-state scan: chronologically separate from the before-state
+        # evidence above (later commits can show whether this change was
+        # subsequently fixed, reverted or reworked).
+        if c.after:
+            out.append(_b("  After this commit"))
+            out.append(f"    · {sanitize(c.after.get('summary', ''))}")
+            if verbose:
+                for lc in c.after.get("later_commits", []):
+                    out.append(f"      {sanitize(lc['short'])}  "
+                               f"{sanitize(lc['date'])}  "
+                               f"{sanitize(lc['subject'])}")
+            out.append("")
+
+        out.append("─" * 60)
+        out.append("")
+
+    if result.warnings:
+        out.append(_b("Warnings"))
+        for w in result.warnings:
+            out.append(f"  ! {sanitize(w)}")
+        out.append("")
+
+    out.append("Note: this is historical evidence, not a safety guarantee. "
+               "The developer makes the final decision.")
+    return "\n".join(out) + "\n"
+
+
 def render_json(result) -> str:
     """Serialize the full structured result as JSON (UTF-8, escaped).
 
-    Works for both AnalysisResult and DiffResult (anything with a
+    Works for AnalysisResult, DiffResult and CommitResult (anything with a
     `to_dict()`). Values pass through sanitize() first: json.dumps escapes
     C0 control characters but NOT C1 (0x80-0x9f) or DEL (0x7f), so a
     malicious commit message could otherwise embed a raw CSI byte (0x9b)

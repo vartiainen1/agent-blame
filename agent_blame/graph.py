@@ -87,11 +87,14 @@ def _is_test_path(path: str) -> bool:
 
 def build_graph(repo: Repository, target: Target,
                 blame_lines=None,
-                commits: Optional[List[CommitInfo]] = None) -> HistoricalGraph:
+                commits: Optional[List[CommitInfo]] = None,
+                revision: str = "HEAD") -> HistoricalGraph:
     """Build the targeted historical graph for a target.
 
     `commits` may be pre-fetched by the caller (analyzer fetches once and
-    reuses) to avoid re-running `git log` for every stage.
+    reuses) to avoid re-running `git log` for every stage. `revision`
+    anchors the fallback fetches (commit mode passes the target commit's
+    parent so the graph describes the state BEFORE that commit).
 
     Returns (graph, introducing_commits, later_commits):
       introducing_commits: commits blamed for introducing the target lines
@@ -105,7 +108,7 @@ def build_graph(repo: Repository, target: Target,
 
     # 1. Blame the target range -> introducing commits per line.
     if blame_lines is None:
-        blame_lines = blame_target(repo, target)
+        blame_lines = blame_target(repo, target, revision=revision)
     for bl in blame_lines:
         introducing.add(bl.commit)
         line_key = f"line:{target.file}:{bl.line_no}"
@@ -115,7 +118,7 @@ def build_graph(repo: Repository, target: Target,
 
     # 2. All commits touching the file (follow renames), newest first.
     if commits is None:
-        commits = file_commits(repo, target.file)
+        commits = file_commits(repo, target.file, revision=revision)
     for ci in commits:
         ckey = f"commit:{ci.sha}"
         g.add_node(ckey, "commit", sha=ci.sha, subject=ci.subject,
