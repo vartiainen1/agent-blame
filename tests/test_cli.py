@@ -12,8 +12,8 @@ import subprocess
 import sys
 import unittest
 
-from tests.gitfixture import (make_evolution_fixture, make_introduction_fixture,
-                              make_malicious_message_fixture)
+from tests.gitfixture import (make_diff_modify_fixture, make_evolution_fixture,
+                              make_introduction_fixture, make_malicious_message_fixture)
 
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -135,6 +135,47 @@ class TestCliErrors(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = jsonlib.loads(proc.stdout)
         self.assertEqual(data["target"]["file"], "nope.py")
+
+
+class TestCliDiff(unittest.TestCase):
+    """--diff mode via the real CLI (output values, not just exit codes)."""
+
+    def setUp(self):
+        self.fx = make_diff_modify_fixture()
+        self.cwd = self.fx.root
+
+    def tearDown(self):
+        self.fx.cleanup()
+
+    def test_diff_terminal_output_values(self):
+        proc = _run_cli(["--diff"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("DIFF ANALYSIS", proc.stdout)
+        self.assertIn("src/retry.py", proc.stdout)
+        self.assertIn("Historical change risk", proc.stdout)
+
+    def test_diff_json_output_values(self):
+        proc = _run_cli(["--diff", "--json"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = jsonlib.loads(proc.stdout)
+        self.assertEqual(data["mode"], "diff")
+        self.assertEqual(data["scope"], "worktree")
+        self.assertTrue(data["files"])
+        self.assertIn("analysis", data["files"][0]["groups"][0])
+
+    def test_diff_no_repo_clean_error(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = _run_cli(["--diff"], tmp)
+            self.assertEqual(proc.returncode, 1)
+            self.assertNotIn("Traceback", proc.stderr)
+            self.assertIn("not inside a git repository", proc.stderr)
+
+    def test_diff_conflicts_with_history(self):
+        proc = _run_cli(["--diff", "--history", "src/retry.py:3"], self.cwd)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn("--diff", proc.stderr)
 
 
 class TestCliSecurity(unittest.TestCase):

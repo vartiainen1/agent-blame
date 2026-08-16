@@ -115,6 +115,12 @@ agent-blame --history src/auth/session.py:142
 # RISK: historical change/removal risk
 agent-blame --risk src/auth/session.py:142
 
+# DIFF: historical context for your current working-tree changes
+agent-blame --diff
+
+# DIFF, staged changes only (git diff --cached)
+agent-blame --diff --staged
+
 # JSON: machine-readable structured result
 agent-blame --json src/auth/session.py:142
 
@@ -129,10 +135,121 @@ agent-blame --verbose src/auth/session.py:142
 | `target` | `<file>:<line>` or `<file>:<start>-<end>` (repo-relative) |
 | `--history` | ranked historical timeline for the target |
 | `--risk` | historical change/removal risk analysis |
+| `--diff` | DIFF mode: analyze the current working-tree changes |
+| `--staged` | with `--diff`: analyze staged changes (`git diff --cached`) |
 | `--json` | machine-readable JSON output (stable schema) |
 | `--verbose` | per-evidence weights and reasons |
 | `--cwd DIR` | repository or subdirectory to analyze (default: cwd) |
 | `--version` | print version and exit |
+
+---
+
+## DIFF mode
+
+`agent-blame --diff` answers: *"I changed this code - what does its history
+have to say about my change?"* It analyzes the developer's current changes
+and provides historical context for the changed regions:
+
+```text
+developer changes code
+        \/
+agent-blame --diff
+        \/
+identify changed files + hunks (git diff)
+        \/
+group changed lines by shared historical evidence
+        \/
+existing pipeline per group (blame -> evidence -> confidence -> risk)
+        \/
+human-readable + JSON output
+```
+
+Example output:
+
+```text
+DIFF ANALYSIS  (WORKING TREE changes vs HEAD)
+
+src/auth/session.py  (modified)
+
+  Changed: lines 142-148
+    -  142  def refresh(token):
+    +  142  def refresh(token, force=False):
+    ...
+  Historical context
+    • line 142 introduced by 81f3a2: Add concurrency guard for token refresh
+
+  Why (inferred)
+    · The introducing commit message references concurrency-related concerns
+
+  Related evidence
+    ✓ lines 142-148 introduced by 81f3a2: Add concurrency guard
+    ✓ commit 81f3a2 added test file(s): tests/test_concurrent_refresh.py
+    ✓ 3 later commits modified this file (aggregated)
+
+  Counter-evidence
+    ✗ 2 later commit(s) removed lines from src/auth/session.py
+
+  Historical change risk: HIGH
+  Confidence: HIGH
+```
+
+### Scopes
+
+Two diff scopes are supported and explicit:
+
+| Scope | Command | What is analyzed |
+|-------|---------|------------------|
+| working tree | `agent-blame --diff` | `git diff` — unstaged working-tree changes |
+| staged | `agent-blame --diff --staged` | `git diff --cached` — staged changes |
+
+Untracked files are **not** part of `git diff`; they are reported as new
+files with no historical evidence (stage them to include them).
+
+### How it avoids noise
+
+- **Hunks, not lines.** Changed lines are grouped into hunks; each hunk is
+  analyzed once, never per-line.
+- **Evidence-signature merging.** Hunks whose analysis is identical (same
+  introducing commits, same evidence, same confidence/risk) are merged into
+  one group with all their ranges — *"these 8 changed lines share the same
+  historical context"* instead of 8 duplicate explanations.
+- **Per-commit evidence is aggregated in the terminal.** A file touched by
+  80 commits does not print 80 near-identical bullets; the terminal shows
+  "N later commits modified this file". The JSON output keeps the full
+  per-commit list for machine consumption.
+
+### Honesty rules (same as the rest of the tool)
+
+- **Added lines have no history** — never fabricated. The surrounding
+  context (nearest previous-revision lines) is analyzed instead, and the
+  limitation is stated explicitly.
+- **Deleted lines are analyzed against the previous revision** (HEAD): blame
+  on the old lines surfaces the introducing commit, history, and risk of
+  removing them.
+- **A brand-new file has no base version** — reported as new, no analysis.
+- **Binary files** are reported, not parsed.
+- **Renames** are analyzed against the pre-rename path (blame must run
+  against the name the file had at HEAD); the new path is shown in the
+  output.
+
+### Diff JSON
+
+The diff JSON reuses the existing schema: `mode: "diff"`, plus `scope` and
+`files[]`, where each file has `status`, `path`, `old_path` (renames), and
+`groups[]`. Each group carries the merged `ranges`, the `changes` (per-line
+side/type/text), and the full `analysis` sub-object — the same evidence,
+counter-evidence, confidence, risk, history, and warnings structures as WHY
+mode. Machine consumers get complete per-commit evidence; nothing is lost.
+
+### Known limitations (documented, not hidden)
+
+- `git log --follow` (history simplification) may omit a merge commit from a
+  path-limited log; commits from both parents remain visible.
+- Per-commit added/removed counts come from `git log --numstat`; counts can
+  differ by ±1 from diff-based counting on files whose line endings were
+  normalized — immaterial to the thresholds used.
+- Rename detection is git's own (`-M`); a pure rename with no content change
+  is reported without per-line analysis.
 
 ---
 
@@ -326,6 +443,8 @@ python -m unittest tests.test_output -v
 python -m unittest tests.test_git -v
 python -m unittest tests.test_analyzer -v
 python -m unittest tests.test_cli -v
+python -m unittest tests.test_diff -v
+python -m unittest tests.test_perf -v
 ```
 
 Tests build **miniature git repositories with known histories** (introduction,
@@ -339,10 +458,11 @@ messages, Unicode paths, shallow clones, deleted files) and assert on the
 agent_blame/
   __init__.py      version + package doc
   cli.py           argparse CLI
-  analyzer.py      pipeline orchestration
+  analyzer.py      pipeline orchestration (+ AnalysisMemo for multi-target runs)
+  diff.py          --diff mode: diff parsing, grouping, noise control
   repository.py    repository discovery
   git.py           safe Git abstraction (no shell, timeouts)
-  history.py       blame, commits, diffs
+  history.py       blame, commits, diffs (batched metadata + numstat)
   graph.py         targeted historical graph
   evidence.py      evidence + counter-evidence discovery
   ranking.py       deterministic evidence weights
@@ -359,16 +479,17 @@ tests/
 
 ## Roadmap (not yet built)
 
-Phase 2 candidates: diff mode (`--diff`), commit mode (`--commit`), stronger
-revert/rename/code-movement tracking, caller and symbol relationships,
-regression detection, better counter-evidence, caching. Phase 3 candidates:
-merge-aware analysis, richer JSON, optional LLM explanation layer that
-explains the structured findings without inventing evidence.
+Phase 2 remaining: commit mode (`--commit`), stronger revert/rename/code-
+movement tracking, caller and symbol relationships, regression detection,
+better counter-evidence, caching. Phase 3 candidates: merge-aware analysis,
+richer JSON, optional LLM explanation layer that explains the structured
+findings without inventing evidence.
 
 The MVP deliberately stops at: repository discovery, safe Git, `file:line`
 targets, blame, introducing commits, commit diffs/metadata, relevant history,
 evidence model + ranking, confidence, basic counter-evidence, basic risk,
-JSON output, secure terminal output, and tests.
+JSON output, secure terminal output, and tests. Phase 2A adds `--diff` on top
+of the same single engine (one pipeline, multiple target selectors).
 
 ---
 

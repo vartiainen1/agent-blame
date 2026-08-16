@@ -161,6 +161,109 @@ class Risk:
         return {"level": self.level, "reasons": self.reasons}
 
 
+# ---------------------------------------------------------------------------
+# Diff mode (--diff)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class DiffChange:
+    """One changed line inside a diff hunk.
+
+    `side` says which file version the line belongs to: "old" (the HEAD/
+    base version) or "new" (the working-tree/staged version). `type` is
+    "add" (only on the new side), "del" (only on the old side), or "mod"
+    (a paired old/new line that git treats as a modification).
+    """
+
+    side: str                       # "old" | "new"
+    line: int                       # 1-based line number on that side
+    type: str                       # "add" | "del" | "mod"
+    text: str                       # raw line content (unsanitized)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class DiffRange:
+    """A contiguous line range on one side of a hunk."""
+
+    start: int
+    end: int
+
+    def to_dict(self) -> dict:
+        return {"start": self.start, "end": self.end}
+
+
+@dataclass
+class DiffGroup:
+    """One analyzed region of a changed file.
+
+    A group is one or more hunks whose historical analysis is identical;
+    the analyzer merges hunks with the same evidence signature so a large
+    diff does not produce dozens of duplicate explanations.
+
+    `ranges` lists the old/new line ranges covered (one per merged hunk);
+    `analysis` is the full pipeline AnalysisResult for the region.
+    """
+
+    ranges: List[dict] = field(default_factory=list)      # DiffRange dicts
+    changes: List[dict] = field(default_factory=list)     # DiffChange dicts
+    added_lines: int = 0
+    deleted_lines: int = 0
+    analysis: dict = field(default_factory=dict)          # AnalysisResult dict
+    new_file: bool = False     # True: brand-new file, no base version
+
+    def to_dict(self) -> dict:
+        return {
+            "ranges": self.ranges,
+            "changes": self.changes,
+            "added_lines": self.added_lines,
+            "deleted_lines": self.deleted_lines,
+            "new_file": self.new_file,
+            "analysis": self.analysis,
+        }
+
+
+@dataclass
+class DiffFile:
+    """One changed file in the diff, with its analyzed groups."""
+
+    path: str                       # repo-relative path in the NEW tree
+    status: str                     # "A" | "D" | "M" | "R" | "?" (untracked)
+    old_path: Optional[str] = None  # previous path for renames/deletes
+    groups: List[DiffGroup] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "path": self.path,
+            "status": self.status,
+            "old_path": self.old_path,
+            "groups": [g.to_dict() for g in self.groups],
+        }
+
+
+@dataclass
+class DiffResult:
+    """The full structured result of a --diff run."""
+
+    scope: str                      # "worktree" (git diff) | "staged" (--cached)
+    repository: dict = field(default_factory=dict)
+    files: List[DiffFile] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "tool": "agent-blame",
+            "version": __version__,
+            "mode": "diff",
+            "scope": self.scope,
+            "repository": self.repository,
+            "files": [f.to_dict() for f in self.files],
+            "warnings": self.warnings,
+        }
+
+
 @dataclass
 class AnalysisResult:
     """The full structured result of an agent-blame investigation."""

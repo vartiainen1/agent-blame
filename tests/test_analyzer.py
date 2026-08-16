@@ -353,6 +353,43 @@ class TestTestPathHeuristic(unittest.TestCase):
             self.assertTrue(_is_test_path(p), f"{p} should be a test")
 
 
+class TestCommitShaIntegrity(_Base):
+    """Regression: git log --format=%H%x00 appends \n after each NUL, so
+    every sha after the first used to carry a leading newline. That broke
+    introducer-vs-later matching: the introducing commit was silently
+    re-credited as a LATER modification. Shas must be clean 40-hex.
+    """
+
+    @staticmethod
+    def make_fx():
+        return make_evolution_fixture()
+
+    def test_all_history_shas_are_clean_hex(self):
+        res = self.analyze("app/retry.py", 3)
+        for h in res.history:
+            self.assertRegex(h["sha"], r"^[0-9a-f]{40}$",
+                             f"corrupted sha: {h['sha']!r}")
+
+    def test_introducer_not_double_credited_as_later_modifier(self):
+        res = self.analyze("app/retry.py", 3)
+        intro = [e for e in res.evidence if e["kind"] == "introduced_by"]
+        self.assertEqual(len(intro), 1)
+        intro_sha = intro[0]["commit"]
+        # The introducing commit must NOT also appear as a later modifier.
+        mods = [e for e in res.evidence
+                if e["kind"] == "modified_by" and e["commit"] == intro_sha]
+        self.assertEqual(mods, [], "introducer wrongly credited as later mod")
+
+    def test_facts_and_history_share_clean_shas(self):
+        res = self.analyze("app/retry.py", 3)
+        fact_shas = {f["commit"] for f in res.facts if f.get("commit")}
+        hist_shas = {h["sha"] for h in res.history}
+        # Every blamed introducer must exist in the file's history list.
+        self.assertTrue(fact_shas <= hist_shas,
+                        "blame shas not found in history: "
+                        f"{fact_shas - hist_shas}")
+
+
 class TestJsonStructure(_Base):
 
     @staticmethod

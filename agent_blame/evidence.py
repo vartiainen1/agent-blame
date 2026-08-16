@@ -16,7 +16,7 @@ import re
 from typing import Dict, List, Optional, Set, Tuple
 
 from .graph import HistoricalGraph, _is_test_path
-from .history import commit_diff_for_file, commit_info
+from .history import commit_info
 from .models import EvidenceItem, Target
 from .ranking import weight_for
 from .repository import Repository
@@ -60,13 +60,15 @@ def collect_evidence(repo: Repository, target: Target,
                      later: List[str],
                      commit_map: Optional[Dict[str, object]] = None,
                      diff_memo: Optional[Dict[Tuple[str, str], object]] = None,
+                     stats: Optional[Dict[str, Tuple[int, int]]] = None,
                      ) -> List[EvidenceItem]:
     """Collect scored evidence items for the target.
 
     Each item carries its weight and the reasons for that weight, so the
-    final score is explainable (spec section 8). `commit_map` and
-    `diff_memo` are optional memo dicts owned by the caller to avoid
-    re-fetching the same git facts.
+    final score is explainable (spec section 8). `commit_map`, `diff_memo`
+    and `stats` are optional memo structures owned by the caller to avoid
+    re-fetching the same git facts (stats = {sha: (added, removed)} in one
+    batched git call).
     """
     evidence: List[EvidenceItem] = []
     file = target.file
@@ -177,7 +179,8 @@ def collect_evidence(repo: Repository, target: Target,
         ))
 
     # --- Counter-evidence: deletion of the target file's lines ----------
-    counter = _detect_deletion_counterevidence(repo, target, later, diff_memo)
+    counter = _detect_deletion_counterevidence(repo, target, later, diff_memo,
+                                               stats=stats)
     evidence.extend(counter)
 
     return dedupe_evidence(evidence)
@@ -226,7 +229,9 @@ def _get_diff(repo: Repository, sha: str, file: str,
 
 def _detect_deletion_counterevidence(repo: Repository, target: Target,
                                      later: List[str],
-                                     diff_memo=None) -> List[EvidenceItem]:
+                                     diff_memo=None,
+                                     stats: Optional[Dict[str, Tuple[int, int]]] = None,
+                                     ) -> List[EvidenceItem]:
     """Find commits that deleted lines from the target file.
 
     A later commit that removes lines is counter-evidence: the code may
@@ -236,11 +241,18 @@ def _detect_deletion_counterevidence(repo: Repository, target: Target,
     exact range mapping is not reliable - documented limitation). To avoid
     one weak signal being emitted per commit, the finding is AGGREGATED
     into a single counter-evidence item.
+
+    Uses the batched per-commit stats map when provided (one git call per
+    file); falls back to per-commit diffs for direct callers.
     """
     deleters = []
     for sha in later:
-        diff = _get_diff(repo, sha, target.file, diff_memo)
-        if diff is not None and diff.removed_lines > 0:
+        if stats is not None:
+            removed = (stats.get(sha) or (0, 0))[1]
+        else:
+            diff = _get_diff(repo, sha, target.file, diff_memo)
+            removed = diff.removed_lines if diff is not None else 0
+        if removed > 0:
             deleters.append(sha)
     if not deleters:
         return []
@@ -260,6 +272,7 @@ def detect_counterevidence(repo: Repository, target: Target,
                            later: List[str],
                            commit_map: Optional[Dict[str, object]] = None,
                            diff_memo: Optional[Dict[Tuple[str, str], object]] = None,
+                           stats: Optional[Dict[str, Tuple[int, int]]] = None,
                            ) -> List[EvidenceItem]:
     """Standalone counter-evidence pass (reverts + replacement).
 
@@ -292,16 +305,20 @@ def detect_counterevidence(repo: Repository, target: Target,
     # Replacement: a later commit that largely rewrote/removed the file is
     # a hint the implementation was superseded (weak signal).
     for sha in later:
-        diff = _get_diff(repo, sha, target.file, diff_memo)
-        if diff is None:
-            continue
-        if (diff.removed_lines >= _REPLACEMENT_MIN_REMOVED and
-                diff.added_lines < diff.removed_lines * 0.3):
+        if stats is not None:
+            added, removed = stats.get(sha) or (0, 0)
+        else:
+            diff = _get_diff(repo, sha, target.file, diff_memo)
+            if diff is None:
+                continue
+            added, removed = diff.added_lines, diff.removed_lines
+        if (removed >= _REPLACEMENT_MIN_REMOVED and
+                added < removed * 0.3):
             out.append(EvidenceItem(
                 kind="replacement",
                 commit=sha,
                 text=f"commit {sha[:8]} largely rewrote/removed {target.file} "
-                     f"({diff.removed_lines} lines removed)",
+                     f"({removed} lines removed)",
                 weight=weight_for("replacement"),
                 reasons=["large deletion in one later commit suggests "
                          "supersession (weak signal)"],

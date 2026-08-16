@@ -319,3 +319,240 @@ def make_detached_head_fixture() -> GitFixture:
     f.commit("Modify", {"src/detached.py": "z = 2\n"})
     f._run("checkout", "-q", "HEAD~1")  # detached
     return f
+
+
+# ---------------------------------------------------------------------------
+# Phase 2A: --diff fixtures (working-tree / staged changes on top of a
+# KNOWN history, so tests can assert the analysis of the change itself)
+# ---------------------------------------------------------------------------
+
+def _diff_fx() -> GitFixture:
+    """Shared history: a retry module with a known introducing commit.
+
+    History:
+      A: "Add rate-limit handling"  (introduces src/retry.py)
+      B: "Fix retry timing for 429s" (modifies the sleep line + adds test)
+      C: "Add retry regression test" (adds tests/test_retry.py)
+    """
+    f = GitFixture()
+    f.commit("Add rate-limit handling", {
+        "src/retry.py": (
+            "def retry(fn, n=7):\n"
+            "    import time\n"
+            "    time.sleep(13)\n"
+            "    return fn()\n"
+        ),
+    })
+    f.commit("Fix retry timing for 429s", {
+        "src/retry.py": (
+            "def retry(fn, n=7):\n"
+            "    import time\n"
+            "    time.sleep(7)\n"
+            "    return fn()\n"
+        ),
+    })
+    f.commit("Add retry regression test", {
+        "tests/test_retry.py": "def test_429_backoff():\n    assert True\n",
+    })
+    return f
+
+
+def make_diff_modify_fixture() -> GitFixture:
+    """Diff fixture: one historically meaningful line modified.
+
+    Working tree changes line 3 of src/retry.py (time.sleep(7) -> 5): the
+    line was introduced by commit B ("Fix retry timing for 429s"), so the
+    --diff analysis must credit B, not A.
+    """
+    f = _diff_fx()
+    f.write("src/retry.py", (
+        "def retry(fn, n=7):\n"
+        "    import time\n"
+        "    time.sleep(5)\n"
+        "    return fn()\n"
+    ))
+    return f
+
+
+def make_diff_add_fixture() -> GitFixture:
+    """Diff fixture: a completely new line added (no previous line history).
+
+    Adds a new logging line at the end of src/retry.py. The added line has
+    no direct historical evidence - the analyzer must say so, not fabricate
+    an introducing commit for it, and must analyze the surrounding context.
+    """
+    f = _diff_fx()
+    f.write("src/retry.py", (
+        "def retry(fn, n=7):\n"
+        "    import time\n"
+        "    time.sleep(7)\n"
+        "    return fn()\n"
+        "    print('retrying')\n"
+    ))
+    return f
+
+
+def make_diff_new_file_fixture() -> GitFixture:
+    """Diff fixture: a brand-new file (untracked in the worktree)."""
+    f = _diff_fx()
+    f.write("src/backoff.py", "def backoff():\n    return 1\n")
+    return f
+
+
+def make_diff_staged_fixture() -> GitFixture:
+    """Diff fixture: staged changes (git add) only.
+
+    The working tree is CLEAN (nothing unstaged); only the index differs
+    from HEAD. `--diff` (worktree) sees nothing; `--diff --staged` sees
+    the modification of the historically meaningful line.
+    """
+    f = _diff_fx()
+    f.write("src/retry.py", (
+        "def retry(fn, n=7):\n"
+        "    import time\n"
+        "    time.sleep(3)\n"
+        "    return fn()\n"
+    ))
+    f._run("add", "--", "src/retry.py")
+    return f
+
+
+def make_diff_deleted_fixture() -> GitFixture:
+    """Diff fixture: a historically meaningful file deleted (unstaged).
+
+    src/retry.py (introduced by commit A, later fixed) is deleted from the
+    working tree without being staged. The analysis must target the
+    PREVIOUS revision and surface the full history + risk of removing it.
+    """
+    f = _diff_fx()
+    os.remove(os.path.join(f.root, "src/retry.py"))
+    return f
+
+
+def make_diff_rename_fixture() -> GitFixture:
+    """Diff fixture: a file renamed with a content change (staged).
+
+    The rename is staged (git mv), so it only appears with --staged. The
+    content change inside the renamed file is a modification of the
+    historically meaningful line.
+    """
+    f = _diff_fx()
+    f._run("mv", "src/retry.py", "src/session.py")
+    f.write("src/session.py", (
+        "def retry(fn, n=7):\n"
+        "    import time\n"
+        "    time.sleep(5)\n"
+        "    return fn()\n"
+    ))
+    # Stage both the rename and the content change so --staged sees a
+    # rename-with-modification (the realistic review scenario).
+    f._run("add", "-A")
+    return f
+
+
+def make_diff_malicious_fixture() -> GitFixture:
+    """Diff fixture: malicious content in the changed lines.
+
+    The modified line contains ANSI/control sequences. The terminal output
+    must render safely (sanitized), and JSON must stay clean.
+    """
+    f = _diff_fx()
+    f.write("src/retry.py", (
+        "def retry(fn, n=7):\n"
+        "    import time\n"
+        "    time.sleep(7)  # \x1b[2J\x1b[H evil\n"
+        "    return fn()\n"
+    ))
+    return f
+
+
+def make_diff_unicode_fixture() -> GitFixture:
+    """Diff fixture: a modified file with a Unicode path."""
+    f = GitFixture()
+    f.commit("Add unicode module", {
+        "src/ünïcode/mod.py": "value = 1\n",
+    })
+    f.write("src/ünïcode/mod.py", "value = 2\n")
+    return f
+
+
+def make_diff_revert_fixture() -> GitFixture:
+    """Diff fixture: reverting a historically reverted line.
+
+    History: line introduced, removed, restored by revert. The working
+    tree then modifies that reverted line again - the analysis must
+    surface the revert history (counter-evidence / risk) for the region.
+    """
+    f = GitFixture()
+    f.commit("Add retry logic", {
+        "app/retry.py": "def retry(fn):\n    return fn()\n",
+    })
+    f.commit("Remove retry logic", {
+        "app/retry.py": "",
+    })
+    f.commit('Revert "Remove retry logic"', {
+        "app/retry.py": "def retry(fn):\n    return fn()\n",
+    })
+    f.write("app/retry.py", "def retry(fn, n=3):\n    return fn()\n")
+    return f
+
+
+def make_diff_empty_fixture() -> GitFixture:
+    """Diff fixture: no changes at all (clean working tree + index)."""
+    return _diff_fx()
+
+
+def make_diff_multi_hunk_fixture() -> GitFixture:
+    """Diff fixture: several changed regions sharing one introducing commit.
+
+    src/multi.py introduced by ONE commit with several independent lines;
+    the working tree modifies multiple regions. All changed lines share
+    the same introducing commit and evidence - the analyzer must produce
+    ONE group (aggregated), not one explanation per changed line.
+    """
+    f = GitFixture()
+    f.commit("Add multi module", {
+        "src/multi.py": (
+            "alpha = 1\n"
+            "beta = 2\n"
+            "gamma = 3\n"
+            "delta = 4\n"
+            "epsilon = 5\n"
+            "zeta = 6\n"
+            "eta = 7\n"
+            "theta = 8\n"
+            "iota = 9\n"
+            "kappa = 10\n"
+        ),
+    })
+    f.write("src/multi.py", (
+        "alpha = 100\n"
+        "beta = 2\n"
+        "gamma = 300\n"
+        "delta = 4\n"
+        "epsilon = 500\n"
+        "zeta = 6\n"
+        "eta = 700\n"
+        "theta = 8\n"
+        "iota = 900\n"
+        "kappa = 10\n"
+    ))
+    return f
+
+
+def make_diff_whitespace_fixture() -> GitFixture:
+    """Diff fixture: whitespace-only change to a historically meaningful line.
+
+    The content is semantically identical but the whitespace differs, so
+    git reports a modification. The analysis should still credit the
+    introducing commit (blame uses -w, so whitespace-only hunks attribute
+    to the original introducer).
+    """
+    f = _diff_fx()
+    f.write("src/retry.py", (
+        "def retry(fn, n=7):\n"
+        "    import time\n"
+        "    time.sleep(7)   \n"
+        "    return fn()\n"
+    ))
+    return f

@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import re
 
-from .models import AnalysisResult
+from .models import AnalysisResult, DiffResult
 
 # CSI: ESC [ params... final-byte (letters/@-~). Handles clear, cursor,
 # color, erase - anything a terminal would interpret.
@@ -156,13 +156,205 @@ def render_terminal(result: AnalysisResult, verbose: bool = False) -> str:
     return "\n".join(out) + "\n"
 
 
-def render_json(result: AnalysisResult) -> str:
+def render_diff_terminal(result: DiffResult, verbose: bool = False) -> str:
+    """Render a --diff result as human-readable terminal output.
+
+    Each changed region is rendered once (hunks with identical evidence
+    were already merged by the analyzer), so a large diff does not produce
+    a wall of duplicate explanations. Every repository string passes
+    through sanitize().
+    """
+    scope = "STAGED" if result.scope == "staged" else "WORKING TREE"
+    out = [f"{_b('DIFF ANALYSIS')}  ({scope} changes vs HEAD)", ""]
+
+    if not result.files:
+        out.append("  No changes to analyze.")
+        for w in result.warnings:
+            out.append(f"  ! {sanitize(w)}")
+        return "\n".join(out) + "\n"
+
+    for f in result.files:
+        status_name = {"A": "added", "D": "deleted", "M": "modified",
+                       "R": "renamed", "C": "copied"}.get(f.status, f.status)
+        header = f"{sanitize(f.path)}  ({status_name}"
+        if f.old_path and f.status in ("R", "C"):
+            header += f" from {sanitize(f.old_path)}"
+        header += ")"
+        out.append(_b(header))
+        out.append("")
+
+        for g in f.groups:
+            if g.new_file:
+                out.append("  New file - no historical evidence available "
+                           f"({g.added_lines} line(s) added).")
+                _render_group_changes(out, g, verbose)
+                out.append("")
+                continue
+
+            a = g.analysis
+            conf = a.get("confidence", {})
+            risk = a.get("risk", {})
+
+            # Ranges covered by this group (one per merged hunk).
+            ranges_txt = []
+            for r in g.ranges:
+                old = r.get("old")
+                new = r.get("new")
+                if old:
+                    if old["start"] == old["end"]:
+                        ranges_txt.append(f"line {old['start']}")
+                    else:
+                        ranges_txt.append(f"lines {old['start']}-{old['end']}")
+                elif new:
+                    if new["start"] == new["end"]:
+                        ranges_txt.append(f"new line {new['start']}")
+                    else:
+                        ranges_txt.append(f"new lines {new['start']}-{new['end']}")
+            if ranges_txt:
+                out.append(f"  Changed: {', '.join(ranges_txt)}")
+            else:
+                out.append("  No textual changes (binary or pure rename).")
+            _render_group_changes(out, g, verbose)
+
+            # Historical context: the introducing commit(s) from blame facts.
+            intro = [f for f in a.get("facts", []) if f.get("kind") == "blame"]
+            if intro:
+                out.append(_b("  Historical context"))
+                # Cap per-line facts: a whole deleted file could blame 100s
+                # of lines; the distinct introducing commits matter more.
+                shown = set()
+                rendered = []
+                for fct in intro:
+                    key = fct.get("commit", "")
+                    if key in shown:
+                        continue
+                    shown.add(key)
+                    rendered.append(fct)
+                for fct in rendered[:10]:
+                    out.append(f"    • {sanitize(fct.get('text', ''))}")
+                if len(rendered) > 10:
+                    out.append(f"    ... {len(rendered) - 10} more introducing "
+                               f"commit(s)")
+                out.append("")
+
+            # Inferences (purpose etc.) - the "why" distilled.
+            infs = a.get("inferences", [])
+            if infs:
+                out.append(_b("  Why (inferred)"))
+                for inf in infs:
+                    out.append(f"    · {sanitize(inf['text'])}")
+                out.append("")
+
+            # Evidence bullets. Per-commit kinds (modified_by / fix_related)
+            # are AGGREGATED into one line per kind: a file touched by 80
+            # commits must not print 80 near-identical bullets (the spec's
+            # noise-control contract). Distinct kinds stay individual.
+            ev = a.get("evidence", [])
+            if ev:
+                out.append(_b("  Related evidence"))
+                _render_evidence_aggregated(out, ev, verbose)
+                out.append("")
+            else:
+                out.append(_b("  Related evidence"))
+                out.append("    None found.")
+                out.append("")
+
+            cev = a.get("counter_evidence", [])
+            out.append(_b("  Counter-evidence"))
+            if cev:
+                # Counter-evidence is already aggregated by the engine
+                # (one item per kind); render each item once.
+                for e in cev:
+                    out.append(f"    ✗ {sanitize(e['text'])}")
+            else:
+                out.append("    None found.")
+            out.append("")
+
+            out.append(_kv("Historical change risk", risk.get("level", "UNKNOWN")))
+            for r in risk.get("reasons", []):
+                out.append(f"      - {sanitize(r)}")
+            out.append(_kv("Confidence", conf.get("level", "INSUFFICIENT")))
+            out.append("")
+
+            for w in a.get("warnings", []):
+                out.append(f"  ! {sanitize(w)}")
+            out.append("")
+
+        out.append("─" * 60)
+        out.append("")
+
+    if result.warnings:
+        out.append(_b("Warnings"))
+        for w in result.warnings:
+            out.append(f"  ! {sanitize(w)}")
+        out.append("")
+
+    out.append("Note: this is historical evidence, not a safety guarantee. "
+               "The developer makes the final decision.")
+    return "\n".join(out) + "\n"
+
+
+def _render_evidence_aggregated(out: list, ev: list, verbose: bool) -> None:
+    """Render evidence bullets, collapsing per-commit kinds into counts.
+
+    `modified_by` and `fix_related` are emitted once per later commit by
+    the engine; for a long-lived file that is dozens of near-identical
+    bullets. Collapse each kind into a single line with a commit count
+    (the JSON output keeps the full per-commit list for machines).
+    """
+    counts: dict = {}     # kind -> list of texts
+    singles: list = []    # kinds shown individually (introduced_by, tests)
+    for e in ev:
+        kind = e["kind"]
+        if kind in ("modified_by", "fix_related", "related_fix"):
+            counts.setdefault(kind, []).append(e["text"])
+        else:
+            singles.append(e)
+    for e in singles:
+        out.append(f"    ✓ {sanitize(e['text'])}")
+        if verbose:
+            out.append(f"        weight {e['weight']:+.2f}  [{e['kind']}]")
+    for kind in ("modified_by", "fix_related", "related_fix"):
+        items = counts.get(kind)
+        if not items:
+            continue
+        if len(items) == 1:
+            out.append(f"    ✓ {sanitize(items[0])}")
+        else:
+            text = sanitize(items[0])
+            if kind == "modified_by":
+                label = f"{len(items)} later commits modified this file"
+            else:
+                label = f"{len(items)} later commits reference a fix/regression"
+            out.append(f"    ✓ {label} (e.g. {text[:90]}{'...' if len(text) > 90 else ''})")
+        if verbose:
+            out.append(f"        ({len(items)} item(s), aggregated)")
+
+
+def _render_group_changes(out: list, g, verbose: bool) -> None:
+    """Render the changed lines of a group (sanitized, + / - prefixed)."""
+    if not g.changes:
+        return
+    lines = []
+    for c in g.changes:
+        mark = "+" if c["side"] == "new" else "-"
+        lines.append(f"    {mark} {c['line']:>4}  {sanitize(c['text'])}")
+    if len(lines) <= 20:
+        out.extend(lines)
+    else:
+        out.extend(lines[:10])
+        out.append(f"    ... {len(lines) - 10} more changed line(s) "
+                   f"(use --json for the full list)")
+
+
+def render_json(result) -> str:
     """Serialize the full structured result as JSON (UTF-8, escaped).
 
-    Values pass through sanitize() first: json.dumps escapes C0 control
-    characters but NOT C1 (0x80-0x9f) or DEL (0x7f), so a malicious
-    commit message could otherwise embed a raw CSI byte (0x9b) in the
-    JSON that a terminal would interpret when the JSON is printed.
+    Works for both AnalysisResult and DiffResult (anything with a
+    `to_dict()`). Values pass through sanitize() first: json.dumps escapes
+    C0 control characters but NOT C1 (0x80-0x9f) or DEL (0x7f), so a
+    malicious commit message could otherwise embed a raw CSI byte (0x9b)
+    in the JSON that a terminal would interpret when the JSON is printed.
     """
     return json.dumps(_sanitize_dict(result.to_dict()),
                       ensure_ascii=False, indent=2) + "\n"

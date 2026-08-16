@@ -12,13 +12,13 @@ the order; every stage stays independently testable.
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import List
 
 from .confidence import compute_confidence
 from .evidence import collect_evidence, dedupe_evidence, detect_counterevidence
 from .git import GitError
 from .graph import build_graph
-from .history import blame_target, file_commits, file_exists_at_head
+from .history import blame_target, file_commits, file_diff_stats, file_exists_at_head
 from .inference import infer_original_vs_current, infer_purpose
 from .models import AnalysisResult, Confidence, Inference, Target
 from .ranking import rank_evidence
@@ -26,7 +26,40 @@ from .repository import Repository
 from .risk import analyze_risk
 
 
-def analyze(repo: Repository, target: Target, mode: str = "why") -> AnalysisResult:
+class AnalysisMemo:
+    """Shared cache for a multi-target run (used by --diff).
+
+    Diff mode analyzes many line ranges that share the same files and
+    commits. Without sharing, each target would re-run `git log --follow`
+    for its file and re-fetch every commit's metadata/diffs - the N+1
+    pattern this memo exists to prevent. One memo is created per run and
+    threaded through every analyze() call.
+    """
+
+    def __init__(self) -> None:
+        self._commits: dict = {}      # file -> List[CommitInfo]
+        self._stats: dict = {}        # file -> {sha: (added, removed)}
+        self.commit_map: dict = {}    # sha -> CommitInfo (all fetched so far)
+        self.diff_memo: dict = {}     # (sha, file) -> CommitDiff
+
+    def file_commits(self, repo: Repository, file: str):
+        """Commits touching `file`, fetched once per file and cached."""
+        if file not in self._commits:
+            commits = file_commits(repo, file)
+            self._commits[file] = commits
+            for c in commits:
+                self.commit_map.setdefault(c.sha, c)
+        return self._commits[file]
+
+    def file_stats(self, repo: Repository, file: str):
+        """Per-commit added/removed counts for `file`, one git call per file."""
+        if file not in self._stats:
+            self._stats[file] = file_diff_stats(repo, file)
+        return self._stats[file]
+
+
+def analyze(repo: Repository, target: Target, mode: str = "why",
+            memo: AnalysisMemo = None) -> AnalysisResult:
     """Run the full pipeline for one target.
 
     Handles the known edge cases:
@@ -34,6 +67,10 @@ def analyze(repo: Repository, target: Target, mode: str = "why") -> AnalysisResu
       - shallow clone -> LIMITED HISTORY warning
       - unborn repo / no commits -> INSUFFICIENT with warning
       - target line beyond the file's length -> clean warning, INSUFFICIENT
+
+    `memo` (optional) shares commit/diff caches across calls - pass the
+    same AnalysisMemo when analyzing several targets from one run (diff
+    mode) so git facts are fetched at most once.
 
     INTEGRITY RULE: line-level evidence (blame, introducing commits, later
     modifications of the TARGET LINES, confidence, risk) is only produced
@@ -43,6 +80,8 @@ def analyze(repo: Repository, target: Target, mode: str = "why") -> AnalysisResu
     built from unrelated file-level history. "Insufficient evidence" is
     always preferred over a plausible-but-wrong explanation.
     """
+    if memo is None:
+        memo = AnalysisMemo()
     warnings: List[str] = list(repo.warnings)
     has_history = bool(repo.head)
 
@@ -88,7 +127,7 @@ def analyze(repo: Repository, target: Target, mode: str = "why") -> AnalysisResu
             })
 
     # --- Commits touching the file (fetched ONCE, reused everywhere) ----
-    commits = file_commits(repo, target.file)
+    commits = memo.file_commits(repo, target.file)
     result.history = [_commit_row(c) for c in commits]
 
     # If the target lines could not be blamed, we have NO line-anchored
@@ -107,13 +146,15 @@ def analyze(repo: Repository, target: Target, mode: str = "why") -> AnalysisResu
                                             commits=commits)
 
     # --- Evidence collection + ranking ----------------------------------
-    commit_map: Dict[str, object] = {c.sha: c for c in commits}
-    # Memoize per-file diffs so each (sha, file) diff runs at most once.
-    diff_memo: Dict[Tuple[str, str], object] = {}
+    # commit_map / diff_memo come from the shared memo when provided, so
+    # multiple targets in one run (diff mode) reuse every git fact.
+    stats = memo.file_stats(repo, target.file)
     evidence = collect_evidence(repo, target, graph, introducing, later,
-                                commit_map=commit_map, diff_memo=diff_memo)
+                                commit_map=memo.commit_map, diff_memo=memo.diff_memo,
+                                stats=stats)
     counter = detect_counterevidence(repo, target, introducing, later,
-                                     commit_map=commit_map, diff_memo=diff_memo)
+                                     commit_map=memo.commit_map, diff_memo=memo.diff_memo,
+                                     stats=stats)
     all_evidence = dedupe_evidence([*evidence, *counter])
     ranked = rank_evidence(all_evidence)
 
