@@ -219,10 +219,14 @@ files with no historical evidence (stage them to include them).
   introducing commits, same evidence, same confidence/risk) are merged into
   one group with all their ranges — *"these 8 changed lines share the same
   historical context"* instead of 8 duplicate explanations.
-- **Per-commit evidence is aggregated in the terminal.** A file touched by
-  80 commits does not print 80 near-identical bullets; the terminal shows
-  "N later commits modified this file". The JSON output keeps the full
-  per-commit list for machine consumption.
+- **Per-commit evidence is aggregated in the terminal — in every mode.** A
+  file touched by 80 commits does not print 80 near-identical bullets; the
+  terminal shows "N later commits modified this file" (WHY / HISTORY /
+  RISK / DIFF / COMMIT all use the same renderer). Caller facts are listed
+  once, in the Callers section, not duplicated in Evidence. The WHY / RISK
+  historical chain shows the newest 25 commits with a pointer to `--history`
+  for the full timeline (HISTORY mode shows everything). The JSON output
+  keeps the full per-commit list for machine consumption.
 
 ### Honesty rules (same as the rest of the tool)
 
@@ -392,7 +396,10 @@ A caller is **LIVE** only when the reference exists at the analyzed
 revision (historical code never inherits callers that did not exist yet).
 In `--diff`/`--commit`, callers in files that the change deletes or
 modifies are marked **DELETED** / **MODIFIED** — the status is
-revision-honest, never blindly live.
+revision-honest, never blindly live. The terminal renders these distinctly:
+`✓` LIVE (exists at the analyzed revision), `~` MODIFIED (exists, but its
+file is part of the analyzed change — it is NOT dead), `✗` DELETED (the
+only genuinely dead status).
 
 ### What it never claims
 
@@ -885,6 +892,34 @@ USEFUL MVP** (developers can benefit today, with honest limits).
 
 ---
 
+## Phase 4: external developer validation (complete)
+
+Phase 4 was a simulated external-developer study (no human participants
+available in the build environment — see `PHASE4_VALIDATION.md` for the
+methodology and a ready-to-run real-developer protocol). It found and fixed:
+
+- **a false-caller correctness bug** — `_classify_call` never verified the
+  callee name, so any bare call whose name was an import alias
+  (`cast(...)`, `parse_url(...)`) inside the target's class was credited as
+  a DIRECT caller (requests `prepare_url` gained 4 fabricated callers); now
+  only calls that actually name the target (or a deterministically-resolved
+  alias) are callers,
+- **output noise** — WHY/HISTORY/RISK printed every per-commit
+  `modified_by` bullet (rich: 528 lines, 199 near-identical bullets); now
+  aggregated like diff/commit (82 lines, zero information loss — JSON
+  keeps the full list), with the WHY/RISK chain capped at 25 + a `--history`
+  pointer,
+- **a misleading caller marker** — MODIFIED callers rendered with the
+  "dead" marker; now `✓` LIVE / `~` MODIFIED / `✗` DELETED.
+
+**Result: 279 tests green; JSON byte-identical across runs; zero
+false-high-confidence findings; MVP classification: USEFUL MVP (C).**
+Honest finding from the time-to-answer study: agent-blame is not faster
+than a known `git blame` command — its value is discovery, aggregation, and
+classification effort, not wall-clock speed.
+
+---
+
 ## Roadmap (not yet built)
 
 Completed: `--diff` (2A), `--commit` (2B), caller/symbol relationships
@@ -892,11 +927,13 @@ Completed: `--diff` (2A), `--commit` (2B), caller/symbol relationships
 regression detection (2E) — all on one deterministic engine (many target
 selectors: `file:line`, `--history`, `--risk`, `--diff`, `--commit`).
 
-Phase 3 candidates (not started): merge-aware analysis, richer JSON,
+Phase 3/4 candidates (not started): merge-aware analysis, richer JSON,
 optional LLM explanation layer that explains the structured findings
 without inventing evidence. Advanced caller/movement-assisted attribution
 and blame-ancestry views were explicitly deferred per the Phase 2
-stop-conditions.
+stop-conditions. Phase 4 confirmed the feature freeze: requested features
+(blame-ancestry views, non-Python languages, LLM layer) are logged in
+`PHASE4_VALIDATION.md`, not built.
 
 ---
 

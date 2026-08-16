@@ -30,6 +30,7 @@ from tests.gitfixture import (GitFixture, make_caller_aliased_fixture,
                               make_caller_diff_fixture,
                               make_caller_false_positive_fixture,
                               make_caller_history_fixture,
+                              make_caller_import_alias_false_positive_fixture,
                               make_caller_large_fixture,
                               make_caller_malicious_fixture,
                               make_caller_method_fixture,
@@ -173,7 +174,15 @@ class TestNestedFunction(_Base):
 
 
 class TestDeletedCaller(_Base):
-    """9. Commit deleting the caller file marks it DELETED."""
+    """9. Commit deleting the CALLER file marks it DELETED.
+
+    Phase 4 correction: this fixture's commit C must touch the analyzed
+    target (auth.py) as well as delete the caller (server.py) - otherwise
+    the target is never analyzed. The pre-Phase-4 fixture deleted only
+    server.py and the test passed only because of a false caller
+    (authenticate() inside handle_request was mis-credited as a DIRECT
+    caller of handle_request itself).
+    """
 
     @staticmethod
     def make_fx():
@@ -190,6 +199,44 @@ class TestDeletedCaller(_Base):
                         self.assertEqual(c["relationship"], "DIRECT_CALL")
                         found = True
         self.assertTrue(found, "deleted caller not found in commit analysis")
+
+    def test_deleted_file_group_does_not_fabricate_self_caller(self):
+        # The deleted server.py group analyzes handle_request; with the
+        # Phase 4 fix it must NOT credit authenticate() (an imported-name
+        # bare call) as handle_request calling itself.
+        res = analyze_commit(self.repo, self.fx.shas["C"])
+        for ch in res.changes:
+            if ch.path != "src/server.py":
+                continue
+            for g in ch.groups:
+                self.assertEqual(g.analysis.get("symbol", {}).get("name"),
+                                 "handle_request")
+                self.assertEqual(g.analysis.get("callers", []), [],
+                                 "no fabricated self-caller for a deleted "
+                                 "function with no real callers")
+
+
+class TestImportAliasFalsePositive(_Base):
+    """Phase 4 regression (requests prepare_url bug): a bare call whose
+    name is an import alias (cast(...)) inside a SIBLING method of the
+    target's class is NOT a caller of the target method. Only calls that
+    actually name the target (self.target()) are DIRECT callers.
+    """
+
+    @staticmethod
+    def make_fx():
+        return make_caller_import_alias_false_positive_fixture()
+
+    def test_only_real_calls_are_callers(self):
+        res = self.why("src/service.py", 4)  # def target
+        callers = self.callers(res)
+        self.assertEqual(callers["src/service.py:Client.run"]["relationship"],
+                         "DIRECT_CALL")
+        self.assertNotIn("src/service.py:Client.prepare_auth", callers,
+                         "cast() is an imported name, not a call to target()")
+        self.assertNotIn("src/service.py:Client.prepare_body", callers)
+        self.assertNotIn("src/service.py:Client.target", callers,
+                         "the target itself is never its own caller")
 
 
 class TestCallerIntroducedLater(_Base):

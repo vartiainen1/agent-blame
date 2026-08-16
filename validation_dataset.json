@@ -1,0 +1,3557 @@
+{
+  "generated": "2026-08-16T22:18:08Z",
+  "note": "SIMULATED validation - no external human participants available in this environment. Command sequences are executed for real; persona observations are reconstructed from actual output.",
+  "discoverability": [
+    {
+      "repo": "requests",
+      "args": [
+        "--help"
+      ],
+      "rc": 0,
+      "seconds": 0.13,
+      "stdout_head": "usage: agent-blame [-h] [--history] [--risk] [--diff] [--commit REV]\n                   [--staged] [--json] [--verbose] [--cwd CWD] [--version]\n                   [target]\n\nDeterministic Git archaeology: why this code exists, how it evolved, and what\nhistorical evidence matters before changing or removing it. No LLM, no network\n- the repository is the source of truth.\n\npositional arguments:\n  targ",
+      "label": "help"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--version"
+      ],
+      "rc": 0,
+      "seconds": 0.13,
+      "stdout_head": "agent-blame 0.1.0\n",
+      "label": "version"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "src/requests/models.py:483"
+      ],
+      "rc": 0,
+      "seconds": 0.82,
+      "stdout_head": "WHY DOES THIS CODE EXIST?\n\n  Target: src/requests/models.py:483\n\nConfidence\n  Level: HIGH\n  Score: 0.85\n    - 16 supporting evidence item(s)\n    - 1 counter-evidence item(s)\n\nFacts\n  ✓ line 483 introduced by 561e4b68: Add inline types to Requests (#7272)\n\nInferences\n  · Original purpose may no longer apply: later commits removed lines from this file. The current code may be retained for a differen",
+      "label": "why file:line"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "src/requests/models.py:480-486"
+      ],
+      "rc": 0,
+      "seconds": 1.31,
+      "stdout_head": "WHY DOES THIS CODE EXIST?\n\n  Target: src/requests/models.py:480-486\n\nConfidence\n  Level: HIGH\n  Score: 0.85\n    - 18 supporting evidence item(s)\n    - 1 counter-evidence item(s)\n\nFacts\n  ✓ line 480 introduced by fae3f92c: lazily load idna library\n  ✓ line 481 introduced by fae3f92c: lazily load idna library\n  ✓ line 482 introduced by fae3f92c: lazily load idna library\n  ✓ line 483 introduced by 56",
+      "label": "why range"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--history",
+        "src/requests/models.py:483"
+      ],
+      "rc": 0,
+      "seconds": 0.8,
+      "stdout_head": "HISTORY\n\n  Target: src/requests/models.py:483\n\nConfidence\n  Level: HIGH\n  Score: 0.85\n    - 16 supporting evidence item(s)\n    - 1 counter-evidence item(s)\n\nFacts\n  ✓ line 483 introduced by 561e4b68: Add inline types to Requests (#7272)\n\nInferences\n  · Original purpose may no longer apply: later commits removed lines from this file. The current code may be retained for a different reason (or may b",
+      "label": "history"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--risk",
+        "src/requests/models.py:483"
+      ],
+      "rc": 0,
+      "seconds": 0.8,
+      "stdout_head": "CHANGE / REMOVAL ANALYSIS\n\n  Target: src/requests/models.py:483\n\nConfidence\n  Level: HIGH\n  Score: 0.85\n    - 16 supporting evidence item(s)\n    - 1 counter-evidence item(s)\n\nFacts\n  ✓ line 483 introduced by 561e4b68: Add inline types to Requests (#7272)\n\nInferences\n  · Original purpose may no longer apply: later commits removed lines from this file. The current code may be retained for a differen",
+      "label": "risk"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--json",
+        "src/requests/models.py:483"
+      ],
+      "rc": 0,
+      "seconds": 0.81,
+      "json": {
+        "tool": "agent-blame",
+        "version": "0.1.0",
+        "target": {
+          "file": "src/requests/models.py",
+          "start_line": 483,
+          "end_line": 483
+        },
+        "mode": "why",
+        "repository": {
+          "root": "C:\\Users\\VARTIA~1\\AppData\\Local\\Temp\\ab-eval\\requests",
+          "head": "8068356288978c4f54661ae6f95afe0e0831885e",
+          "shallow": false
+        },
+        "confidence": {
+          "level": "HIGH",
+          "score": 0.85,
+          "reasons": [
+            "16 supporting evidence item(s)",
+            "1 counter-evidence item(s)"
+          ]
+        },
+        "facts": [
+          {
+            "kind": "blame",
+            "line": 483,
+            "commit": "561e4b6889f53584c39a67f8794c53a414f68481",
+            "summary": "Add inline types to Requests (#7272)",
+            "author": "Nate Prewitt",
+            "date": "2026-05-03T19:38:48Z",
+            "text": "line 483 introduced by 561e4b68: Add inline types to Requests (#7272)"
+          }
+        ],
+        "inferences": [
+          {
+            "text": "Original purpose may no longer apply: later commits removed lines from this file. The current code may be retained for a different reason (or may be superseded).",
+            "evidence_kinds": [
+              "deleted_lines"
+            ],
+            "confidence": "LOW"
+          }
+        ],
+        "evidence": [
+          {
+            "kind": "introduced_by",
+            "commit": "561e4b6889f53584c39a67f8794c53a414f68481",
+            "text": "lines 483-483 introduced by 561e4b68: Add inline types to Requests (#7272)",
+            "weight": 0.3,
+            "reasons": [
+              "direct line introduction via git blame"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "same_commit_test",
+            "commit": "561e4b6889f53584c39a67f8794c53a414f68481",
+            "text": "commit 561e4b68 added test file(s): tests/test_requests.py",
+            "weight": 0.2,
+            "reasons": [
+              "test introduced together with the code"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "live_caller",
+            "commit": null,
+            "text": "confirmed live caller: src/requests/models.py:PreparedRequest.prepare",
+            "weight": 0.2,
+            "reasons": [
+              "DIRECT_CALL at src/requests/models.py:441"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "modified_by",
+            "commit": "6f66281a1d6326b1b9c4ac09ca30de0fc4e6ef43",
+            "text": "later commit 6f66281a modified the file: Add hasattr checks for remaining protocol isinstance checks (#7505)",
+            "weight": 0.18,
+            "reasons": [
+              "later modification of the target file"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "modified_by",
+            "commit": "6f205ff422bccd5e4c4fc0b64c5f3e7df5181db6",
+            "text": "later commit 6f205ff4 modified the file: Fix `_encode_files` detection for `__getattr__`-based file wrappers (#7502)",
+            "weight": 0.18,
+            "reasons": [
+              "later modification of the target file"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "modified_by",
+            "commit": "661970d171d9c3e12e4c789c4768db647d8c4da0",
+            "text": "later commit 661970d1 modified the file: Disable commonly ignored Pyright linting rules (#7497)",
+            "weight": 0.18,
+            "reasons": [
+              "later modification of the target file"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "modified_by",
+            "commit": "1190afd14fca74292946d62c4c8169880a47ff67",
+            "text": "later commit 1190afd1 modified the file: Add type annotation for `Request.hooks` (#7498)",
+            "weight": 0.18,
+            "reasons": [
+              "later modification of the target file"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "modified_by",
+            "commit": "e50e5945294f79ee9ab4ec69de24d14f9b26a7ae",
+            "text": "later commit e50e5945 modified the file: Improve static typing of 3rd party imports  (#7496)",
+            "weight": 0.18,
+            "reasons": [
+              "later modification of the target file"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "modified_by",
+            "commit": "84d10f0be83e8f6aeca8a05230c52216431c4d0b",
+            "text": "later commit 84d10f0b modified the file: Move Request.headers back to Mapping (#7441)",
+            "weight": 0.18,
+            "reasons": [
+              "later modification of the target file"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "modified_by",
+            "commit": "e511bc72777a94c45d004e010c597925092e1efe",
+            "text": "later commit e511bc72 modified the file: Fix mutability issues with headers input types (#7431)",
+            "weight": 0.18,
+            "reasons": [
+              "later modification of the target file"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "modified_by",
+            "commit": "2144213c307691710c9d665700860fc4993c3035",
+            "text": "later commit 2144213c modified the file: Constrain Response.reason to str (#7437)",
+            "weight": 0.18,
+            "reasons": [
+              "later modification of the target file"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "modified_by",
+            "commit": "6404f345e562d962abe6700a1c357ec1e7e18232",
+            "text": "later commit 6404f345 modified the file: Fix `prepare_body` stream detection for `__getattr__`-based file wrappers (#7433)",
+            "weight": 0.18,
+            "reasons": [
+              "later modification of the target file"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "fix_related",
+            "commit": "6f205ff422bccd5e4c4fc0b64c5f3e7df5181db6",
+            "text": "later commit 6f205ff4 references a fix/regression: Fix `_encode_files` detection for `__getattr__`-based file wrappers (#7502)",
+            "weight": 0.15,
+            "reasons": [
+              "later commit message references fix/regression (weak signal)"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "fix_related",
+            "commit": "e50e5945294f79ee9ab4ec69de24d14f9b26a7ae",
+            "text": "later commit e50e5945 references a fix/regression: Improve static typing of 3rd party imports  (#7496)",
+            "weight": 0.15,
+            "reasons": [
+              "later commit message references fix/regression (weak signal)"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "fix_related",
+            "commit": "e511bc72777a94c45d004e010c597925092e1efe",
+            "text": "later commit e511bc72 references a fix/regression: Fix mutability issues with headers input types (#7431)",
+            "weight": 0.15,
+            "reasons": [
+              "later commit message references fix/regression (weak signal)"
+            ],
+            "is_counter": false
+          },
+          {
+            "kind": "fix_related",
+            "commit": "6404f345e562d962abe6700a1c357ec1e7e18232",
+            "text": "later commit 6404f345 references a fix/regression: Fix `prepare_body` stream detection for `__getattr__`-based file wrappers (#7433)",
+            "weight": 0.15,
+            "reasons": [
+              "later commit message references fix/regression (weak signal)"
+            ],
+            "is_counter": false
+          }
+        ],
+        "counter_evidence": [
+          {
+            "kind": "deleted_lines",
+            "commit": null,
+            "text": "8 later commit(s) removed lines from src/requests/models.py",
+            "weight": -0.15,
+            "reasons": [
+              "later commits delete lines in this file (approximate range mapping - documented limitation)"
+            ],
+            "is_counter": true
+          }
+        ],
+        "regressions": [],
+        "callers": [
+          {
+            "symbol": "src/requests/models.py:PreparedRequest.prepare",
+            "path": "src/requests/models.py",
+            "name": "PreparedRequest.prepare",
+            "line": 441,
+            "call_sites": 1,
+            "relationship": "DIRECT_CALL",
+            "status": "LIVE",
+            "confidence": "HIGH",
+            "text": "PreparedRequest.prepare → prepare_url()  DIRECT_CALL at src/requests/models.py:441"
+          },
+          {
+            "symbol": "<textual:prepare_url>",
+            "path": "",
+            "name": "<textual>",
+            "line": 0,
+            "call_sites": 1,
+            "relationship": "TEXTUAL_MATCH",
+            "status": "LIVE",
+            "confidence": "LOW",
+            "text": "1 file(s) contain the name 'prepare_url' as text only (strings, comments or unrelated identifiers)"
+          }
+        ],
+        "symbol": {
+          "path": "src/requests/models.py",
+          "name": "PreparedRequest.prepare_url",
+          "kind": "method",
+          "start_line": 483,
+          "end_line": 563
+        },
+        "movement": null,
+        "history": [
+          {
+            "sha": "6f66281a1d6326b1b9c4ac09ca30de0fc4e6ef43",
+            "date": "2026-06-09T08:45:59-07:00",
+            "subject": "Add hasattr checks for remaining protocol isinstance checks (#7505)",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "6f205ff422bccd5e4c4fc0b64c5f3e7df5181db6",
+            "date": "2026-06-08T22:52:51+02:00",
+            "subject": "Fix `_encode_files` detection for `__getattr__`-based file wrappers (#7502)",
+            "author": "Loïc Pernod"
+          },
+          {
+            "sha": "661970d171d9c3e12e4c789c4768db647d8c4da0",
+            "date": "2026-06-08T19:33:26+02:00",
+            "subject": "Disable commonly ignored Pyright linting rules (#7497)",
+            "author": "Joren Hammudoglu"
+          },
+          {
+            "sha": "1190afd14fca74292946d62c4c8169880a47ff67",
+            "date": "2026-06-04T23:43:21+02:00",
+            "subject": "Add type annotation for `Request.hooks` (#7498)",
+            "author": "Joren Hammudoglu"
+          },
+          {
+            "sha": "e50e5945294f79ee9ab4ec69de24d14f9b26a7ae",
+            "date": "2026-06-04T19:20:33+02:00",
+            "subject": "Improve static typing of 3rd party imports  (#7496)",
+            "author": "Joren Hammudoglu"
+          },
+          {
+            "sha": "84d10f0be83e8f6aeca8a05230c52216431c4d0b",
+            "date": "2026-05-14T10:16:25-06:00",
+            "subject": "Move Request.headers back to Mapping (#7441)",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "e511bc72777a94c45d004e010c597925092e1efe",
+            "date": "2026-05-13T13:16:50-06:00",
+            "subject": "Fix mutability issues with headers input types (#7431)",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "2144213c307691710c9d665700860fc4993c3035",
+            "date": "2026-05-13T08:42:42-06:00",
+            "subject": "Constrain Response.reason to str (#7437)",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "6404f345e562d962abe6700a1c357ec1e7e18232",
+            "date": "2026-05-12T18:51:01+01:00",
+            "subject": "Fix `prepare_body` stream detection for `__getattr__`-based file wrappers (#7433)",
+            "author": "Kaeun Kim"
+          },
+          {
+            "sha": "561e4b6889f53584c39a67f8794c53a414f68481",
+            "date": "2026-05-03T13:38:48-06:00",
+            "subject": "Add inline types to Requests (#7272)",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "d2f6bdecc835475c3cfbb83565ea879d7b2712ca",
+            "date": "2026-04-15T16:06:46+01:00",
+            "subject": "Clarify decode_unicode behaviour in iter_{content,lines} docstrings (#7365)",
+            "author": "Chris Riches"
+          },
+          {
+            "sha": "f8bec2f7ca9d7c03981a12ff8866a9b3923f1699",
+            "date": "2026-01-30T14:10:27-07:00",
+            "subject": "Fix CI and build failures (#7190)",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "5d31ddbf7b3f512dd3c61952d2c16e980a2b7dc1",
+            "date": "2025-02-12T17:58:07+05:30",
+            "subject": "Update src/requests/models.py",
+            "author": "anupam-arista"
+          },
+          {
+            "sha": "a2fd25ff34b66ef71b54dfc90e09a4e4152357f6",
+            "date": "2025-02-11T21:28:59+05:30",
+            "subject": "Update models.py",
+            "author": "anupam-arista"
+          },
+          {
+            "sha": "d96f9982a276c73ab078b255c94397cf4d7f6cc2",
+            "date": "2025-02-11T21:25:29+05:30",
+            "subject": "Update src/requests/models.py",
+            "author": "anupam-arista"
+          },
+          {
+            "sha": "555b870eb19d497ddb67042645420083ec8efb02",
+            "date": "2024-05-14T14:59:26-07:00",
+            "subject": "Allow character detection dependencies to be optional in post-packaging steps",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "12862617df7391a87f30d5bc30fffbcfd8fa3761",
+            "date": "2023-09-14T14:29:37+05:30",
+            "subject": "Update models.Response.json docstring clearer",
+            "author": "anupam-arista"
+          },
+          {
+            "sha": "d63e94f552ebf77ccf45d97e5863ac46500fa2c7",
+            "date": "2023-08-13T14:46:13-07:00",
+            "subject": "Move to src directory (#6506)",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "8112fcc7beb15e1cdc66180c10a3290174866828",
+            "date": "2023-08-12T12:03:10-07:00",
+            "subject": "Pre commit update (#6498)",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "bda7f0171f8bba17989d3a2c28dfa9a9261b1b65",
+            "date": "2022-06-29T20:41:49+02:00",
+            "subject": "Fixed warnings message to suggest using secure protocol. (#6188)",
+            "author": "Sergey Lyapustin"
+          },
+          {
+            "sha": "16b418b44a04981ec452df607730079a6178a804",
+            "date": "2022-06-28T22:08:26-04:00",
+            "subject": "Use yield from instead of looping yield (#6170)",
+            "author": "Kevin Kirsche"
+          },
+          {
+            "sha": "2a6f290bc09324406708a4d404a88a45d848ddf9",
+            "date": "2022-04-29T13:16:58-06:00",
+            "subject": "Add automatic code formatting to Requests (#6095)",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "2d5517682b3b38547634d153cea43d48fbc8cdb5",
+            "date": "2022-03-28T12:51:27-06:00",
+            "subject": "Fix inconsistent exception for JSONDecode error (#6097)",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "8bce583b9547c7b82d44c8e97f37cf9a16cbe758",
+            "date": "2022-03-25T10:50:33-06:00",
+            "subject": "Farewell, sweet Concorde!",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "95f456733656ed93645ff0250bfa54f6d256f6fe",
+            "date": "2022-02-05T11:56:05-07:00",
+            "subject": "Wrap urllib3's SSLError as requests' SSLError (#6057)",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "4246792b818ce804fb1bb98877c8ec7e8f71b2ca",
+            "date": "2021-12-28T17:32:48-07:00",
+            "subject": "Fix erroneous use of 'schema' instead of 'scheme'",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "658c10e84a461e5298199f20f17b510b90ac478a",
+            "date": "2020-04-05T18:47:21+02:00",
+            "subject": "Raise InvalidURL if hosts starts with '.' as was reported at #5367.",
+            "author": "Álvaro Mondéjar"
+          },
+          {
+            "sha": "db575eeedcfdb03bf31285afd3033e301df8b685",
+            "date": "2021-07-26T11:56:44-04:00",
+            "subject": "Fix inconsistent exception type in response.json() method (#5856)",
+            "author": "Steve Berdy"
+          },
+          {
+            "sha": "2ed84f55b22f19a1e1e8eea2e50963dce62052d3",
+            "date": "2021-07-07T00:55:02+01:00",
+            "subject": "Switch LGPL'd chardet for MIT licensed charset_normalizer (#5797)",
+            "author": "Ash Berlin-Taylor"
+          },
+          {
+            "sha": "05a1a21593c9c8e79393d35fae12c9c27a6f7605",
+            "date": "2021-05-06T19:18:58+01:00",
+            "subject": "Throw value error when serializing JSON object with NaN value (#5810)",
+            "author": "tallalnparis4ev"
+          },
+          {
+            "sha": "f79d1ef42f646a1835eda6b1a50c54e7afe56784",
+            "date": "2021-03-18T13:19:28+01:00",
+            "subject": "Also update requests.models.Response",
+            "author": "Christian Clauss"
+          },
+          {
+            "sha": "9cae7be94f0aa35a26b42e1a34e26f874cd754da",
+            "date": "2020-06-18T22:06:23-04:00",
+            "subject": "Clarify that PreparedRequests should not be manually created",
+            "author": "Nick Krichevsky"
+          },
+          {
+            "sha": "71a05cf28985da6bb56ee27b91d7cd005ce8da9d",
+            "date": "2020-06-16T20:53:07+10:00",
+            "subject": "Avoid an unnecessary computation of the length of data for non-stream requests (which determines content-length based upon body content).",
+            "author": "David Black"
+          },
+          {
+            "sha": "9ed5db8ed28e816b597dafd328b342ec95466afa",
+            "date": "2020-05-09T06:08:51+01:00",
+            "subject": "fix raise_for_status docstring (#5293)",
+            "author": "Thomas Grainger"
+          },
+          {
+            "sha": "fd13816d015c4c90ee65297fa996caea6a094ed1",
+            "date": "2020-02-18T15:01:34-08:00",
+            "subject": "Revert \"Fix for response with UTF-8 BOM #4976\"",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "b15056d1d3c4ca3546c88b9fe390f0721b198c2e",
+            "date": "2020-02-18T14:56:19-08:00",
+            "subject": "Revert \"#4965 fix: Accessing response.content twice removes forgets read error.\"",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "9cdf29410778f31b88c48385c4a0fdf96fa10bd1",
+            "date": "2019-08-13T22:58:54+01:00",
+            "subject": "Updated references to previous requests/requests GitHub path",
+            "author": "Nihaal"
+          },
+          {
+            "sha": "bd100472443dcf4189630f6b1ed3ec0a61259dd8",
+            "date": "2019-05-14T12:11:56+03:00",
+            "subject": "#4965 fix: Accessing response.content twice removes forgets read error.",
+            "author": "Белавин Денис"
+          },
+          {
+            "sha": "d91fe00983f1c66b9a428fe1ad15bf6ea8238972",
+            "date": "2019-05-13T17:18:42+03:00",
+            "subject": "#4965 fix-draw: Accessing response.content twice removes forgets read error.",
+            "author": "Белавин Денис"
+          },
+          {
+            "sha": "a310b5ab34f905460486878fb97facf56690676c",
+            "date": "2019-04-30T18:37:11+02:00",
+            "subject": "Possible fix for #4945?",
+            "author": "Bjørnar Myrheim"
+          },
+          {
+            "sha": "177f4dd2a497e3db0e9d62ed0958183f4e9609c9",
+            "date": "2019-02-17T19:06:01+01:00",
+            "subject": "[fix] fix failing doctests in requests/* [add] add --doctest-modules in pytest.ini file as addopts [add] add myself to AUTHORS",
+            "author": "aless10"
+          },
+          {
+            "sha": "19cff44ec1b8eeec99459b504a681aa440f6344c",
+            "date": "2019-02-09T22:14:22+01:00",
+            "subject": "fix response with utf8 bom",
+            "author": "Eduardo Rodrigues"
+          },
+          {
+            "sha": "a7aa86a933523a31e426d2e2aab01247c65ea87e",
+            "date": "2018-11-06T12:35:39-05:00",
+            "subject": "Set iter_lines() decode_unicode default to False",
+            "author": "Kyle Altendorf"
+          },
+          {
+            "sha": "89ab030cdb83a728a30e172bc65d27ba214d2eda",
+            "date": "2017-06-04T14:12:08-03:00",
+            "subject": "Use comprehensions whenever possible",
+            "author": "Hugo Osvaldo Barrera"
+          },
+          {
+            "sha": "b0ad2499c8641d29affc90f565e6628d333d2a96",
+            "date": "2018-09-30T17:14:40-05:00",
+            "subject": "Prefer https:// for URLs throughout project",
+            "author": "Jon Dufresne"
+          },
+          {
+            "sha": "c008bf38836a2b5621ba7b352e9fcecacac4ee93",
+            "date": "2018-07-13T11:44:25+02:00",
+            "subject": "Document that 'params' can also be a list of tuples",
+            "author": "Matthieu Moy"
+          },
+          {
+            "sha": "2d1b4482c5916433a642d66c6b3d0cd28058b39e",
+            "date": "2018-07-13T11:38:56+02:00",
+            "subject": "Document that 'data' can be a list of tuples everywhere",
+            "author": "Matthieu Moy"
+          },
+          {
+            "sha": "7e297ed95bdbd1018657f5d6000379ecdfa54423",
+            "date": "2018-02-04T20:15:31-08:00",
+            "subject": "Separate collections from collections.abc",
+            "author": "Raymond Hettinger"
+          },
+          {
+            "sha": "c1b828bc95b8ed0407511b93ee260aa1032f4f8c",
+            "date": "2018-05-26T18:20:27-04:00",
+            "subject": "Response.content minor perf improvement",
+            "author": "Ofek Lev"
+          },
+          {
+            "sha": "8546a15587b2a240c1d1404d3ef99365b911bf13",
+            "date": "2017-05-23T10:43:32-07:00",
+            "subject": "The library raises NoneType error when file-pointer (fp) resolves to None.",
+            "author": "Rajiv Mayani"
+          },
+          {
+            "sha": "775cde0914265d7dab2bc2501ed7abe6b85c4bae",
+            "date": "2017-11-20T09:16:35Z",
+            "subject": "Clarify that Response.ok will *only* return True/False",
+            "author": "Alex Chan"
+          },
+          {
+            "sha": "e2f5a135c3048d7e6d0b2907ea8811c6943740d3",
+            "date": "2017-07-26T19:21:45-05:00",
+            "subject": "remove legacy super() call",
+            "author": "Mark Szymanski"
+          },
+          {
+            "sha": "4847f5b8cd4071099f06e178856bc9e1b9193b2e",
+            "date": "2017-06-06T23:26:07+01:00",
+            "subject": "Allow Requests.Response to be used as a context manager",
+            "author": "Ed Morley"
+          },
+          {
+            "sha": "33619268f986b7d6452fdab43e70096401c5b361",
+            "date": "2017-05-29T23:00:09-04:00",
+            "subject": "cleanup models.py",
+            "author": "Kenneth Reitz"
+          },
+          {
+            "sha": "7f14db17c8612aed71a181b084455b71e130ffc8",
+            "date": "2017-05-29T12:11:43-04:00",
+            "subject": "new requests namespace",
+            "author": "Kenneth Reitz"
+          },
+          {
+            "sha": "6d3d5e59c9e1a37244ddce0e3d8b30a14d2a9974",
+            "date": "2017-05-26T22:55:55-04:00",
+            "subject": "fix models.py",
+            "author": "Kenneth Reitz"
+          },
+          {
+            "sha": "6c41633cfd5634be42c9026f4c206fc8c2bf5d84",
+            "date": "2017-05-26T22:50:13-04:00",
+            "subject": "fix models.py",
+            "author": "Kenneth Reitz"
+          },
+          {
+            "sha": "c3367d1854208c37855622659ae0a621d9352af2",
+            "date": "2017-05-26T21:28:52-04:00",
+            "subject": "remove Request.send(session)",
+            "author": "Kenneth Reitz"
+          },
+          {
+            "sha": "dfd667df96f9d8102100fdf85292e6dbf4b4e22e",
+            "date": "2017-05-26T21:17:13-04:00",
+            "subject": "who wrote this shit",
+            "author": "Kenneth Reitz"
+          },
+          {
+            "sha": "ce64cce14ef5914216fe52a40496f47b4631d13c",
+            "date": "2017-05-26T21:07:37-04:00",
+            "subject": "API improvements",
+            "author": "Kenneth Reitz"
+          },
+          {
+            "sha": "19ba9f10979a6621d7329c8b60f57055ae37b132",
+            "date": "2017-04-25T21:51:20+01:00",
+            "subject": "Remove some unused imports.",
+            "author": "Chris Gavin"
+          },
+          {
+            "sha": "ead8fba84b12e7496c65272a07de47d553aa0ca0",
+            "date": "2017-04-05T15:51:58+01:00",
+            "subject": "Fixes DeprecationWarnings in Python 3.6 due to invalid escape sequences. Fixes #3954",
+            "author": "Ruben Dura Tari"
+          },
+          {
+            "sha": "8e049bd9eb49485dc98efd6f14ab7f76c084cf8b",
+            "date": "2017-02-16T07:21:15-06:00",
+            "subject": "Update docstrings for Response.__{bool,nonzero}__",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "7a281e74ecdd74f74efcd813165ec654b2e684f4",
+            "date": "2017-02-16T07:15:37-06:00",
+            "subject": "Correct docstring for Response.ok",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "3664682539fe911a3e19712a0ddec21a515bc16f",
+            "date": "2017-02-16T10:06:28+01:00",
+            "subject": "added docstring for response.ok property",
+            "author": "Mislav Cimperšak"
+          },
+          {
+            "sha": "fae3f92c34d8d7267de33ecb676b3d5600146257",
+            "date": "2017-01-17T20:34:15+05:30",
+            "subject": "lazily load idna library",
+            "author": "Moin"
+          },
+          {
+            "sha": "402a55b647c852553ff6967403b12f6b6efc0fd8",
+            "date": "2016-11-30T21:19:31Z",
+            "subject": "Revert \"Restrict URL preparation to HTTP/HTTPS\"",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "f897be58bf3b9eb589617b98bfbca3c0e188602d",
+            "date": "2016-11-24T12:53:49Z",
+            "subject": "Make Response.content return None if raw is None",
+            "author": "Nicola Soranzo"
+          },
+          {
+            "sha": "4f428228d7e48ac2b254d7a2d1869241c6fb213c",
+            "date": "2016-11-23T21:15:07Z",
+            "subject": "Make Response.content() return None if status_code is None",
+            "author": "Nicola Soranzo"
+          },
+          {
+            "sha": "34af72c87d79bd8852e8564c050dd7711c6a08d6",
+            "date": "2016-11-21T18:00:24+01:00",
+            "subject": "Restrict URL preparation to HTTP/HTTPS",
+            "author": "Christian Heimes"
+          },
+          {
+            "sha": "a83685ce00995808725bd07cb3ce8f785178b5e8",
+            "date": "2016-11-20T14:51:14-07:00",
+            "subject": "modifying IDNA encoding check to allow fallback",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "0d7de50dbd7eacb0242506454363c71925d7241a",
+            "date": "2016-11-16T23:26:48+05:30",
+            "subject": "Just lstrip instead of strip because trailing whitespace already works.",
+            "author": "Hussain"
+          },
+          {
+            "sha": "248d3e9f0f8ea1657d9329f8b188a81ca2a65ecc",
+            "date": "2016-11-16T22:48:45+05:30",
+            "subject": "Fixed issue #3696. Added a test for it as well.",
+            "author": "Hussain"
+          },
+          {
+            "sha": "a49c387b7af58e36f7a1266618595b3078be41fd",
+            "date": "2016-11-10T16:26:07-05:00",
+            "subject": "Document that Response.json() may raise ValueError",
+            "author": "Chris Martin"
+          },
+          {
+            "sha": "40402cd0dd044b640b984d25233e1095fae9ec16",
+            "date": "2016-10-27T15:52:31-06:00",
+            "subject": "adding rewind for re-POST bodies",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "548a03acef3238389b1cce95131a0511d5c82211",
+            "date": "2016-10-27T17:57:09+02:00",
+            "subject": "requests.post checked data parameters for type like dict. Changed the type check to Mapping.",
+            "author": "Philipp Konrad"
+          },
+          {
+            "sha": "8dd51d22fc42abf98f8e75ff5722f4b0295015e5",
+            "date": "2016-10-14T15:13:37+01:00",
+            "subject": "Enable UTS46 mode.",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "27812eb90248c021d7277a8823dd9c7885f497af",
+            "date": "2016-10-14T10:17:52+01:00",
+            "subject": "Use IDNA2008 to encode hosts.",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "327512f5ef9eea79a0cb324ba47e7eabf6967b3a",
+            "date": "2016-09-29T23:07:16+09:00",
+            "subject": "Remove error swallowing exception catching of AttributeError",
+            "author": "Frankie Robertson"
+          },
+          {
+            "sha": "087aeacee570e3e3adc6103015d4f8b056705850",
+            "date": "2016-09-27T20:36:42-07:00",
+            "subject": "Change module of internal references to to_native_str()",
+            "author": "Brian Bamsch"
+          },
+          {
+            "sha": "31b35ab838dfab92ea199a2688fefb74215aa7e9",
+            "date": "2016-09-21T10:19:44-06:00",
+            "subject": "removing redundant logic from prepare_content_length",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "d7227fbb7e07af35f23a0d370ab3b01661af9e40",
+            "date": "2016-09-17T00:12:36-07:00",
+            "subject": "Add workaround to avoid implicit import of encodings.idna.",
+            "author": "Carson Lam"
+          },
+          {
+            "sha": "2e1086f5b4fe1caf507abfb6cd2ac0c2ad420e26",
+            "date": "2016-09-05T14:17:46-06:00",
+            "subject": "adding comment",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "cd056cd62109e1b6af16031cf9bc57cb5c38bbbf",
+            "date": "2016-08-26T22:46:18-06:00",
+            "subject": "adding ISO-8859-1 fallback for reason decoding",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "59f12c9669c53c5cb110870cc94e8181831f45ab",
+            "date": "2016-08-11T16:32:19-06:00",
+            "subject": "adding passthrough in close() for non-urllib3-like Responses",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "c69e3eed312404e469dae250592ea6c5b20ebc64",
+            "date": "2016-07-30T07:16:18-05:00",
+            "subject": "Close and then release the connection",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "5453b88f8fa97e5ff0b7e093802eb6a8b2d90a23",
+            "date": "2016-07-26T15:24:29+03:00",
+            "subject": "Spelling fixes",
+            "author": "Ville Skyttä"
+          },
+          {
+            "sha": "b7809acb473cf084b467b0ec0a524c50bcbe225f",
+            "date": "2016-07-20T11:43:47-06:00",
+            "subject": "making class and function docstrings consistent",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "2d4a89f5dc561dbf062ec5c85d6f6ca32a511042",
+            "date": "2016-07-19T15:23:11-06:00",
+            "subject": "adding in pep8 fixes",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "7700ecae14930fd078e28e35425661d46778bfa9",
+            "date": "2016-07-05T17:01:19+03:00",
+            "subject": "Support responses like `HTTP/1.1 404 Unicode chars` (#3385)",
+            "author": "Andrii Kostenko"
+          },
+          {
+            "sha": "2669ab797ce769ecedf5493b04cb976f33e37210",
+            "date": "2016-06-29T13:46:40-04:00",
+            "subject": "check and test for headers containing return characters or leading whitespace",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "0c08ca715484528b41d6957937f1d7af255d897a",
+            "date": "2016-07-01T14:13:41-06:00",
+            "subject": "updating docstring to match functionality",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "0bcf634135e7038c2aa8b4b8b2490ad5c1db5c23",
+            "date": "2016-06-30T17:11:01-07:00",
+            "subject": "Allow None value for chunk_size again (#3368)",
+            "author": "Joy Zheng"
+          },
+          {
+            "sha": "cf3c99890d73f4bc8605c1cd7fbfa4ff1a28237e",
+            "date": "2016-06-27T18:47:34-04:00",
+            "subject": "added in type check for chunk_size",
+            "author": "Nate Prewitt"
+          },
+          {
+            "sha": "cb4c2c0b6507d0978859cf824ca396902ba81064",
+            "date": "2016-05-05T11:15:53+08:00",
+            "subject": "Fix TypeError when get json-encoded content of a response",
+            "author": "messense"
+          },
+          {
+            "sha": "52c0daff5f87adb1e89678139fdd054c8005e580",
+            "date": "2016-05-05T12:12:49-04:00",
+            "subject": "Cleaning up comment on JSON encoding to be more strictly relevant.",
+            "author": "Jesse Shapiro"
+          },
+          {
+            "sha": "9ff2e43cd6de340c152145adc0e922f94e0aaf1c",
+            "date": "2016-05-05T06:27:12-04:00",
+            "subject": "Removing charset from JSON content type; tightening requirements on .encode()",
+            "author": "Jesse Shapiro"
+          },
+          {
+            "sha": "386382b18caab6a3a8a111fa8e24875dca27b0aa",
+            "date": "2016-05-04T20:09:07-04:00",
+            "subject": "Encoding JSON requests to bytes for urllib3 to handle; ensuring same with testing.",
+            "author": "Jesse Shapiro"
+          },
+          {
+            "sha": "fb230709a8d35d8d2973eab3365cb8f9664cfa90",
+            "date": "2016-04-08T22:23:35+03:00",
+            "subject": "Fix for the test ?",
+            "author": "tzickel"
+          },
+          {
+            "sha": "b8a577050dc4345b87afc0cd67193537fac41350",
+            "date": "2016-03-29T11:57:47+01:00",
+            "subject": "Update docstring and API doc to document ability to add per-file headers in multipart POST",
+            "author": "Alexander Hermes"
+          },
+          {
+            "sha": "fc8fa1aa265bb14d59c68eb68a179bce17953967",
+            "date": "2015-12-16T14:56:13Z",
+            "subject": "Fix regression from #2844 regarding binary bodies.",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "23d9b077d8b2db9d13c1edd97ffb65b0582631d0",
+            "date": "2015-12-01T12:24:56+01:00",
+            "subject": "Fix typos",
+            "author": "Jakub Wilk"
+          },
+          {
+            "sha": "4c82dbab6fc3ad4b66babb1b01d21a26db602579",
+            "date": "2015-11-24T13:42:13+01:00",
+            "subject": "Fix 'Transfer-Encoding: chunked' change",
+            "author": "Braulio Valdivielso Martínez"
+          },
+          {
+            "sha": "6f6b2fd1d5ca6b281a841e8a31e32eb6c34c429b",
+            "date": "2015-11-23T20:52:06+01:00",
+            "subject": "Set 'Transfer-Encoding: chunked' if data file length equals 0",
+            "author": "Braulio Valdivielso Martínez"
+          },
+          {
+            "sha": "edc68a0ac899785cd89a726e3da258e880d641dd",
+            "date": "2015-10-23T15:22:36+03:00",
+            "subject": "fix issue #2844",
+            "author": "Alex Khomchenko"
+          },
+          {
+            "sha": "2df3c7c75dd4e3c825421da3aaa4b08bd91d4afb",
+            "date": "2015-10-12T10:50:37+01:00",
+            "subject": "Move to_native_string for methods to prepare()",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "3948a9562db886e7ead6a48dbcbada34fbeb0838",
+            "date": "2015-10-08T14:53:35+01:00",
+            "subject": "Use general null check for JSON",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "a89d5c003a8708e9555968f810311f3e019281c4",
+            "date": "2015-10-03T18:32:28+01:00",
+            "subject": "Revert \"Clarify the contract of Response#ok, and avoid exceptions in it\"",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "086e19d8e175cccb630ee3589affdd2f38075ecd",
+            "date": "2015-10-03T16:34:36+01:00",
+            "subject": "Clarify the contract of Response#ok, and avoid exceptions in it",
+            "author": "Hosam Aly"
+          },
+          {
+            "sha": "bf38d5bf529c89be336cd380067faea83b9287f4",
+            "date": "2015-10-02T13:50:52+05:30",
+            "subject": "Update models.py",
+            "author": "sumitbinnani"
+          },
+          {
+            "sha": "7a0cd16c1a5be16f3df395ee12ed11d0ddde7837",
+            "date": "2015-09-09T13:04:24+05:30",
+            "subject": "changed the null check for 'data' parameter to be more explicit. removed the superfluous encode from the testcase.",
+            "author": "Ravi Prakash Putchala"
+          },
+          {
+            "sha": "37037607b5f3da32ff1897caca3c38e210f04c37",
+            "date": "2015-09-08T14:45:46+05:30",
+            "subject": "Fixed issue #2756",
+            "author": "Ravi Prakash Putchala"
+          },
+          {
+            "sha": "e3bdec5934a4bdd00405acbb714aec81980f6097",
+            "date": "2015-06-22T13:22:59-07:00",
+            "subject": "Display URL as part of HTTP error messages",
+            "author": "Marc Abramowitz"
+          },
+          {
+            "sha": "1da62a65d9b28306c3be7ad603b2721374ce7d13",
+            "date": "2015-05-24T09:59:35-04:00",
+            "subject": "fix contextlib.closing bug for sessions where content is not consumed (issue #2593)",
+            "author": "colin"
+          },
+          {
+            "sha": "8d0889b91b7e9d487e69eea00baed666a25259af",
+            "date": "2015-05-24T09:59:35-04:00",
+            "subject": "fix contextlib.closing bug for sessions where content is not consumed (issue #2593)",
+            "author": "colin"
+          },
+          {
+            "sha": "059e105f8f5897ddf2da7c2317bef995ee099ab5",
+            "date": "2015-05-14T22:30:24+01:00",
+            "subject": "Use complexjson everywhere",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "395a3e888506d3713dba030b73adc21ca99a305c",
+            "date": "2015-05-13T07:04:57+01:00",
+            "subject": "Partially revert ab84f9be5740d4649d734e73b84f17f85e52ffc9",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "553907aa6b588c6006babdf746e34748d630595d",
+            "date": "2015-05-14T22:30:24+01:00",
+            "subject": "Use complexjson everywhere",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "fb6dade63d967623e5fb7505e05d22995dcec00e",
+            "date": "2015-05-13T07:04:57+01:00",
+            "subject": "Partially revert ab84f9be5740d4649d734e73b84f17f85e52ffc9",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "c6c8d649af10cd5660b625fca4f44bd00541d518",
+            "date": "2015-05-12T23:21:03Z",
+            "subject": "do not blindly catch all AttributeErrors",
+            "author": "Thomas Weißschuh"
+          },
+          {
+            "sha": "74609c5c8f94cbae3d3fc72e0b0a53cae19cc29c",
+            "date": "2015-05-06T12:42:43-07:00",
+            "subject": "cleanup styles a bit",
+            "author": "Kenneth Reitz"
+          },
+          {
+            "sha": "ab84f9be5740d4649d734e73b84f17f85e52ffc9",
+            "date": "2015-05-06T12:36:26-07:00",
+            "subject": "removed poor code",
+            "author": "Kenneth Reitz"
+          },
+          {
+            "sha": "35045e851a75b23d3d4e50853dfc1c5555110895",
+            "date": "2015-04-20T20:13:57-05:00",
+            "subject": "Simplify PreparedRequest.prepare API",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "a0632d8df045f9e56625a856a14df8941922eced",
+            "date": "2015-04-10T22:03:26-05:00",
+            "subject": "Minor formatting change",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "599f8343512277671d08e043a0505a82630c641d",
+            "date": "2015-04-11T03:29:21+03:00",
+            "subject": "fix bug 2540",
+            "author": "sh1buy"
+          },
+          {
+            "sha": "f02d0f9e79a3aa3f0b716871f457ceb8f446bdba",
+            "date": "2015-04-11T01:41:02+03:00",
+            "subject": "Fix bug 2540",
+            "author": "sh1buy"
+          },
+          {
+            "sha": "f89b5a5d90d7b45a7f59dbd2bb29ae2f400aba44",
+            "date": "2015-04-11T00:23:07+03:00",
+            "subject": "fix bug 2540",
+            "author": "sh1buy"
+          },
+          {
+            "sha": "e3c7b43fc98aab11bd228498a775a528a06429f0",
+            "date": "2015-04-06T21:00:51+03:00",
+            "subject": "#2532: Documented strange behaviour in \"PreparedRequest.prepare_cookies\", caused by cookielib. Also documented a workaround if absolutely necessary.",
+            "author": "Smiley Barry"
+          },
+          {
+            "sha": "36093e69c70b9b24dd1e007befa35ad891313f51",
+            "date": "2015-04-05T21:27:33-05:00",
+            "subject": "Copy a PreparedRequest's CookieJar reliably",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "54791d1970531cdb44d60e2f0abc186933f1a7ed",
+            "date": "2015-03-21T16:27:21Z",
+            "subject": "Expand on what 'elapsed' means.",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "4497a26c376c60360d05644b574be0db3c887fe3",
+            "date": "2015-03-07T11:04:43+02:00",
+            "subject": "Document Response.iter_lines() reentrancy issues",
+            "author": "Priit Laes"
+          },
+          {
+            "sha": "ec700a9a1338975cbd340001091aa2c6d98c8988",
+            "date": "2015-03-04T10:21:38-05:00",
+            "subject": "Avoid duplicating files data when creating a Request with str/bytes/bytearray in the files argument. 30-40% performance improvement.",
+            "author": "Rasmus Scholer (TimelineX)"
+          },
+          {
+            "sha": "11b12c3e07c542f9027b3cd3fac0d59573d28c2b",
+            "date": "2015-03-03T02:44:52+01:00",
+            "subject": "models.RequestEncodingMixin._encode_files now takes bytearray as fp in addition to the currently supported bytes and str input.",
+            "author": "Rasmus Scholer (TimelineX)"
+          },
+          {
+            "sha": "bd3cf95e34aa49c8d764c899672048df107e0d70",
+            "date": "2014-12-16T22:49:24-06:00",
+            "subject": "Fix error handling on Python 3",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "925e975295e2fe772268e748c6c074af7b0ae47d",
+            "date": "2014-12-16T16:55:13+09:00",
+            "subject": "catch exception more specifically in Response.ok",
+            "author": "daftshady"
+          },
+          {
+            "sha": "3246b1fe172ca3d4f098e85467234ded2f833b31",
+            "date": "2014-11-16T16:39:08-08:00",
+            "subject": "Changed ConnectionError to InvalidURL",
+            "author": "ContinuousFunction"
+          },
+          {
+            "sha": "087a27aba97d3eac017d321e37bf1970f8833c1a",
+            "date": "2014-11-15T16:58:25-08:00",
+            "subject": "Partially addresses Issue #1572",
+            "author": "ContinuousFunction"
+          },
+          {
+            "sha": "ee50afef59ca47879144448ae056a2836f3d4534",
+            "date": "2014-11-12T15:35:27+03:00",
+            "subject": "Fixed.",
+            "author": "Alexander Nelzin"
+          },
+          {
+            "sha": "8e69c9f0a16b37990df4430eb81a5138520689ac",
+            "date": "2014-10-26T14:41:56+01:00",
+            "subject": "Revert \"fix failing test \"test_prepare_unicode_url\"\"",
+            "author": "Scott Sadler"
+          },
+          {
+            "sha": "26ed7c2e1dce4271f3a3b111a167a6dcca3acddf",
+            "date": "2014-10-26T12:49:46+01:00",
+            "subject": "fix failing test \"test_prepare_unicode_url\"",
+            "author": "Scott Sadler"
+          },
+          {
+            "sha": "77687de5099b6b65cde5901a29a3b1c5e751b8a2",
+            "date": "2014-10-26T12:40:05+01:00",
+            "subject": "Revert \"fix failing test \"test_prepare_unicode_url\"\"",
+            "author": "Scott Sadler"
+          },
+          {
+            "sha": "cfd6e25749dd17c6b511043a6720b672f74029ed",
+            "date": "2014-10-25T13:54:34+02:00",
+            "subject": "fix failing test \"test_prepare_unicode_url\"",
+            "author": "Scott Sadler"
+          },
+          {
+            "sha": "3602690886a0b1795f721664e93c96f4b4c9f5a9",
+            "date": "2014-10-24T16:37:35-07:00",
+            "subject": "Changing parameter name `newline` ==> `delimiter`.",
+            "author": "Val Tenyotkin"
+          },
+          {
+            "sha": "f5ff05be1ed04bcc50e33af28fb54382466a32e8",
+            "date": "2014-10-21T18:03:11-07:00",
+            "subject": "Adding a custom line delimiter to iter_lines()",
+            "author": "Val Tenyotkin"
+          },
+          {
+            "sha": "0e4efab270780726fbf4f8b6704f8f22741399d6",
+            "date": "2014-10-05T18:55:59-05:00",
+            "subject": "Re-order params for backwards compat",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "ca2ebc5b682452bc870efb2f7123feda9a80a8ea",
+            "date": "2014-10-05T16:30:11-07:00",
+            "subject": "allow unicode URLs on Python 2",
+            "author": "MinRK"
+          },
+          {
+            "sha": "8ed941fa6991355753e698f6b253096d57f6c7e4",
+            "date": "2014-09-30T16:03:31-05:00",
+            "subject": "Fix a couple of issues I noticed",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "a68d1b4517395e4845fa8405f043f8aa3110f83c",
+            "date": "2014-09-29T21:11:45+01:00",
+            "subject": "Support bytestring URLs on Python 3.x",
+            "author": "Joe Alcorn"
+          },
+          {
+            "sha": "6e5f7bb9d397ade498ee22d9785863ef1b8ad946",
+            "date": "2014-09-22T15:51:59-04:00",
+            "subject": "using the `StreamConsumedError`",
+            "author": "Tim Konick"
+          },
+          {
+            "sha": "d6470870d08828c1d332ae446d5288eaab55d1f1",
+            "date": "2014-09-22T12:46:07-04:00",
+            "subject": "rm `else` after `if` then `raise` block",
+            "author": "Tim Konick"
+          },
+          {
+            "sha": "fdf932c61c7ff77d494a4a413cc5fbdb71328ac7",
+            "date": "2014-09-22T12:04:29-04:00",
+            "subject": "raise RuntimeError when a single streamed request calls *iter methods than once",
+            "author": "Tim Konick"
+          },
+          {
+            "sha": "bff8b91638586a8269f79f1bac6e82921702e5b3",
+            "date": "2014-09-12T17:13:43+02:00",
+            "subject": "Document skipping in PreparedRequest; followup to #2222",
+            "author": "Daniel Hahler"
+          },
+          {
+            "sha": "402f3b4993fe8d0626fcffcbfc30caf671b65df3",
+            "date": "2014-08-28T19:27:45-07:00",
+            "subject": "Changes check on base and json. Fails on tests.",
+            "author": "Carol Willing"
+          },
+          {
+            "sha": "b34a496649667b9324caa634cb17e726e0cce1a5",
+            "date": "2014-08-28T16:45:24-07:00",
+            "subject": "Adds review changes",
+            "author": "Carol Willing"
+          },
+          {
+            "sha": "8f17741849edb5e7eba0356f90cb17e43c938a2f",
+            "date": "2014-07-17T12:34:31-07:00",
+            "subject": "Adds json parameter for POST requests",
+            "author": "Carol Willing"
+          },
+          {
+            "sha": "47d0517d66e8cf5832768262221f0357ae134ad1",
+            "date": "2014-07-29T23:27:38-04:00",
+            "subject": "handle urllib3 api changes; closes #2045",
+            "author": "Josh Schneier"
+          },
+          {
+            "sha": "9eab9f7415e718cefc77f4bbe632abf8e089c555",
+            "date": "2014-07-24T23:00:50+02:00",
+            "subject": "Handle socket errors in iter_content",
+            "author": "Roman Levin"
+          },
+          {
+            "sha": "c3444f8c7abdda2642f59109d6961bdf8511f38c",
+            "date": "2014-06-12T08:25:21-04:00",
+            "subject": "don't make duplicate requests for permanent redirects",
+            "author": "Eric L Frederich"
+          },
+          {
+            "sha": "ec3a2e6f04a6e268cbae747e9f1ff6ea4217f8b2",
+            "date": "2014-06-11T11:08:10-04:00",
+            "subject": "rename resume/resume_incomplete to permanent_redirect according to rfc7238",
+            "author": "Eric L Frederich"
+          },
+          {
+            "sha": "07d9b730b712e8d77106c5c886be4e8bf3bef4f6",
+            "date": "2014-06-10T16:30:17-04:00",
+            "subject": "handle 308 redirection the same as 301 and 302",
+            "author": "Eric L Frederich"
+          },
+          {
+            "sha": "32f600b0836a86596aa3edc98aaa6827f6fe4644",
+            "date": "2014-05-30T10:11:53-07:00",
+            "subject": "Allow copying of PreparedRequests without headers/cookies",
+            "author": "David Gouldin"
+          },
+          {
+            "sha": "5ab79e2514b663ac8e0a82981efe0a5e69efe01c",
+            "date": "2014-05-28T08:17:18-05:00",
+            "subject": "Remove unnecessary check for builtin_str",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "3faff0b8ea2c3c7d87272971893234e26a01d9fc",
+            "date": "2014-05-27T20:29:44-05:00",
+            "subject": "Check for basestring, not just str",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "3346ad1134bbf50e9d9ad36ddd396536c18fe6bc",
+            "date": "2014-05-26T16:40:45+01:00",
+            "subject": "Document and initialise Response.request",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "142b26ea7b4a4badd5ba98ed0e8490e3c7134592",
+            "date": "2014-04-28T19:42:30+01:00",
+            "subject": "Clearer description of Response.close().",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "24819e8aae62170ed2c8439e400cc16423207660",
+            "date": "2014-03-14T16:24:25+08:00",
+            "subject": "support request tuple data",
+            "author": "Feng Liu"
+          },
+          {
+            "sha": "ee7fe02953d864021298ed8d3e3e5f6aff1f6731",
+            "date": "2014-03-12T18:34:43Z",
+            "subject": "Ensure that .raw() is present after unpickling.",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "d289eb22f164e0bc71c81b191c1f00bdd08fe669",
+            "date": "2014-03-04T16:33:40-05:00",
+            "subject": "Always honor decode_unicode, even when _content is present.",
+            "author": "Jason R. Coombs"
+          },
+          {
+            "sha": "c8226f69e13b9a076f725965e2ed462216c2f4c3",
+            "date": "2014-03-04T16:27:13-05:00",
+            "subject": "Add documentation about decode_unicode.",
+            "author": "Jason R. Coombs"
+          },
+          {
+            "sha": "0caa2432123bab2d991e635ce558226d019d7bc7",
+            "date": "2014-02-13T14:27:42-05:00",
+            "subject": "New Response property, .is_redirect.",
+            "author": "Zack Weinberg"
+          },
+          {
+            "sha": "3443c177a3b8279b6c5b5ce9c1643689d8983521",
+            "date": "2014-02-05T17:29:09Z",
+            "subject": "Document the `Response.reason` attribute.",
+            "author": "Martijn Pieters"
+          },
+          {
+            "sha": "488b90f5acfafe65b428765aea70ebebd4afe58a",
+            "date": "2014-02-03T13:43:59Z",
+            "subject": "Remove unused loggers.",
+            "author": "Martijn Pieters"
+          },
+          {
+            "sha": "c5b6a107eb9af0fd6a1a48c7bf0276fbf71e9157",
+            "date": "2014-02-03T13:39:21Z",
+            "subject": "One last Charade reference to remove here.",
+            "author": "Martijn Pieters"
+          },
+          {
+            "sha": "f35838beb6a84b1ece6e775570f6dd668dcd8da0",
+            "date": "2014-02-03T13:37:57Z",
+            "subject": "Remove logging and charade mention.",
+            "author": "Martijn Pieters"
+          },
+          {
+            "sha": "5ee8b348ebab9a7c427a87355dd089c83ee74be9",
+            "date": "2014-02-03T12:00:14Z",
+            "subject": "Reinstate falling back to self.text for JSON responses",
+            "author": "Martijn Pieters"
+          },
+          {
+            "sha": "c6084704ccb5610ea093b6b47fb45d2149570174",
+            "date": "2014-01-31T12:31:11-05:00",
+            "subject": "what is wrong with you people? :)",
+            "author": "Kenneth Reitz"
+          },
+          {
+            "sha": "2b23d6a9f7aa02561fe6d38be31cde4d609d0e2f",
+            "date": "2014-01-31T12:30:52-05:00",
+            "subject": "omg never do this again ever please",
+            "author": "Kenneth Reitz"
+          },
+          {
+            "sha": "4c11fb7f04e1f3bc1fcc0901a81c6af99778e904",
+            "date": "2014-01-25T00:20:10-08:00",
+            "subject": "s/soley/solely",
+            "author": "Kevin Burke"
+          },
+          {
+            "sha": "a0e77064400ceb75569669d4ff5cdc9c19f98514",
+            "date": "2013-12-28T00:09:29-08:00",
+            "subject": "Fix warnings when building the docs",
+            "author": "Kevin Burke"
+          },
+          {
+            "sha": "4a6a0c3c65be2033e11130125601a6c810ea5d10",
+            "date": "2013-12-20T09:15:12Z",
+            "subject": "Update docs to highlight the value of r.encoding.",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "aad828704d1772138dc52a3bebc5964defe8a1e6",
+            "date": "2013-12-19T18:02:56+09:00",
+            "subject": "Re-raise DecodeError",
+            "author": "daftshady"
+          },
+          {
+            "sha": "9379a14cb41916ce71fd94feaa26808b7770511d",
+            "date": "2013-12-18T08:43:18-06:00",
+            "subject": "Fix all remaining references to charade",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "e8bdcdb0a754ce3ec46fe167dfbd0e23f22e5ff7",
+            "date": "2013-12-04T06:45:18-06:00",
+            "subject": "Address feedback from #1729",
+            "author": "Ian Cordasco"
+          },
+          {
+            "sha": "8bfe0d873f382ec92e4000084bb7e00505bc29b2",
+            "date": "2013-11-06T21:52:21-05:00",
+            "subject": "Store the request cookiejar in PreparedRequest.cookies fix #1728",
+            "author": "Chase Sterling"
+          },
+          {
+            "sha": "b149be5d864cc7f65ac22113db3d0e4d2ed2b49e",
+            "date": "2013-10-30T01:35:54-07:00",
+            "subject": "loosen URL handling for non-native URL schemes",
+            "author": "Jayson Vantuyl"
+          },
+          {
+            "sha": "512beb8795f49ed474e3d679dda9524853853378",
+            "date": "2013-11-06T20:01:27-06:00",
+            "subject": "Response and Request objects are pickleable.",
+            "author": "Eric Larson"
+          },
+          {
+            "sha": "9ffcbb82a2d6a49939d52fe95f494488d4b6b7c6",
+            "date": "2013-11-01T11:14:05Z",
+            "subject": "Capitalisation.",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "20f802764142a1886db239ff7b147e3b5433e5f9",
+            "date": "2013-11-01T09:20:22Z",
+            "subject": "Chardet -> charade.",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "0228851f19aaf4b0f620c74cb08d295329431a3e",
+            "date": "2013-10-30T15:32:19-04:00",
+            "subject": "Revert \"Merge pull request #1710 from jvantuyl/master\"",
+            "author": "Kenneth Reitz"
+          },
+          {
+            "sha": "a9ec28a1b4288e6368f855f442817633d3a7f7da",
+            "date": "2013-10-30T01:35:54-07:00",
+            "subject": "don't prepare URLs for oddball schemes",
+            "author": "Jayson Vantuyl"
+          },
+          {
+            "sha": "76be17b00ac8e6f16e0a7e987a15b5d36e6bab01",
+            "date": "2013-10-23T00:15:41+03:00",
+            "subject": "Deleted the extra word in PreparedRequest.prepare's docstring",
+            "author": "Can Ibanoglu"
+          },
+          {
+            "sha": "b5d2160ef8e5eb0b163a69e33f5deb31ecfabd32",
+            "date": "2013-10-20T10:17:54-07:00",
+            "subject": "use .format()",
+            "author": "Kevin Burke"
+          },
+          {
+            "sha": "333ac101baffd01c6eca1c4c61b1d620e4d8ca70",
+            "date": "2013-10-20T00:46:41-07:00",
+            "subject": "Add clarification to MissingSchema error",
+            "author": "Kevin Burke"
+          },
+          {
+            "sha": "8a42d5fb41cbca27f64ced4b8f087fb1001fac23",
+            "date": "2013-10-18T18:34:29+01:00",
+            "subject": "Use builtin_str for all auto-set header values.",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "17dd3c0a76893736917a1e0156b36df0877587d9",
+            "date": "2013-10-15T18:33:51+09:00",
+            "subject": "fixed typo",
+            "author": "daftshady"
+          },
+          {
+            "sha": "bea206018211ef77955dfeb1e982bd3530b1fe60",
+            "date": "2013-10-12T21:05:34+01:00",
+            "subject": "'or content' does us no good.",
+            "author": "Cory Benfield"
+          },
+          {
+            "sha": "5c92c72e2cd18010048af1a3028a80e808ad4ec6",
+            "date": "2013-10-05T09:59:47+06:00",
+            "subject": "removed deprecated while 1:",
+            "author": "Riyad Parvez"
+          },
+          {
+            "sha": "af4fb8cedca7c331b8c914a40c477a2cb02055e1",
+            "date": "2013-09-30T17:07:13-07:00",
+            "subject": "Accept per-file headers in multipart file POST messages.",
+            "author": "Andrew Barnert"
+          },
+          {
+            "sha": "1d1831ba40fe53a37e5ab87e9913dd1c52349066",
+            "date": "2013-09-27T22:17:40+09:00",
+            "subject": "fixed extra bonus bug",
+            "author": "daftshady"
+          },
+          {
+            "sha": "61421843bc794ce9f12e6c72d0f0d160df7bdbe7",
+            "date": "2013-09-13T14:10:09+01:00",
+            "subject": "Python defaults arguments are hard.",
+            "author": "Cory Benfield"
+          }
+        ],
+        "risk": {
+          "level": "HIGH",
+          "reasons": [
+            "regression/fix history around this code (4 fix-related commit(s))",
+            "tests were introduced together with this code (behavior is exercised)",
+            "frequently modified (9 later modifications)",
+            "1 confirmed live caller(s) depend on this code",
+            "lines in this file were removed by later commits (behavior may have been superseded)"
+          ]
+        },
+        "warnings": []
+      },
+      "stdout_head": "{\n  \"tool\": \"agent-blame\",\n  \"version\": \"0.1.0\",\n  \"target\": {\n    \"file\": \"src/requests/models.py\",\n    \"start_line\": 483,\n    \"end_line\": 483\n  },\n  \"mode\": \"why\",\n  \"repository\": {\n    \"root\": \"C:\\\\Users\\\\VARTIA~1\\\\AppData\\\\Local\\\\Temp\\\\ab-eval\\\\requests\",\n    \"head\": \"8068356288978c4f54661ae6f95afe0e0831885e\",\n    \"shallow\": false\n  },\n  \"confidence\": {\n    \"level\": \"HIGH\",\n    \"score\": 0.85,\n",
+      "label": "json"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--diff"
+      ],
+      "rc": 0,
+      "seconds": 0.21,
+      "stdout_head": "DIFF ANALYSIS  (WORKING TREE changes vs HEAD)\n\n  No changes to analyze.\n",
+      "label": "diff"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--diff",
+        "--staged"
+      ],
+      "rc": 0,
+      "seconds": 0.18,
+      "stdout_head": "DIFF ANALYSIS  (STAGED changes vs HEAD)\n\n  No changes to analyze.\n",
+      "label": "diff staged"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--commit",
+        "fd13816d"
+      ],
+      "rc": 0,
+      "seconds": 2.01,
+      "stdout_head": "COMMIT ANALYSIS\n\n  Commit: fd13816d  Revert \"Fix for response with UTF-8 BOM #4976\"\n  Author: Nate Prewitt\n  Date: 2020-02-18T15:01:34-08:00\n  Parents: 24bcb9ea\n  Baseline: 24bcb9ea\n  Type: revert of 19cff44e\n  Changed files: 3\n\nCHANGE  requests/models.py  (modified)\n  Historical regression evidence\n    • EXPLICIT_REVERT (HIGH)\n      this commit explicitly reverts 19cff44e, which changed requests/",
+      "label": "commit sha"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--commit",
+        "HEAD"
+      ],
+      "rc": 0,
+      "seconds": 0.46,
+      "stdout_head": "COMMIT ANALYSIS\n\n  Commit: 80683562  Bump https://github.com/astral-sh/ruff-pre-commit (#7603)\n  Author: dependabot[bot]\n  Date: 2026-08-11T11:14:26-05:00\n  Parents: 1f6589ec\n  Baseline: 1f6589ec\n  Changed files: 1\n\nCHANGE  .pre-commit-config.yaml  (modified)\n  Changed: line 16\n    -   16    rev: v0.16.0\n    +   16    rev: v0.16.1\n  Historical context (before this commit)\n    • line 16 introduced ",
+      "label": "commit HEAD"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "src/requests/models.py"
+      ],
+      "rc": 2,
+      "seconds": 0.12,
+      "stdout_head": "",
+      "stderr": "agent-blame: error: target 'src/requests/models.py' has no line number; expected <file>:<line> e.g. src/auth/session.py:142\n",
+      "label": "bare file"
+    },
+    {
+      "repo": "requests",
+      "args": [],
+      "rc": 0,
+      "seconds": 0.13,
+      "stdout_head": "usage: agent-blame [-h] [--history] [--risk] [--diff] [--commit REV]\n                   [--staged] [--json] [--verbose] [--cwd CWD] [--version]\n                   [target]\n\nDeterministic Git archaeology: why this code exists, how it evolved, and what\nhistorical evidence matters before changing or removing it. No LLM, no network\n- the repository is the source of truth.\n\npositional arguments:\n  targ",
+      "label": "no args"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "src/requests/models.py:99999"
+      ],
+      "rc": 0,
+      "seconds": 0.25,
+      "stdout_head": "WHY DOES THIS CODE EXIST?\n\n  Target: src/requests/models.py:99999\n\nConfidence\n  Level: INSUFFICIENT\n  Score: 0.00\n    - target lines could not be blamed (missing file or out-of-range line); no line-anchored evidence\n\nHistorical chain\n  6f66281a  2026-06-09T08:45:59-07:00  Add hasattr checks for remaining protocol isinstance checks (#7505)\n  6f205ff4  2026-06-08T22:52:51+02:00  Fix `_encode_files` ",
+      "label": "bad line"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--commit",
+        "deadbeef"
+      ],
+      "rc": 2,
+      "seconds": 0.18,
+      "stdout_head": "",
+      "stderr": "agent-blame: error: could not resolve commit 'deadbeef'\n",
+      "label": "bad rev"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--commit",
+        "--help"
+      ],
+      "rc": 2,
+      "seconds": 0.14,
+      "stdout_head": "",
+      "stderr": "usage: agent-blame [-h] [--history] [--risk] [--diff] [--commit REV]\n                   [--staged] [--json] [--verbose] [--cwd CWD] [--version]\n                   [target]\nagent-blame: error: argument --commit: expected one argument\n",
+      "label": "dash rev"
+    },
+    {
+      "repo": "not-a-repo",
+      "args": [
+        "foo.py:1"
+      ],
+      "rc": 1,
+      "seconds": 0.22,
+      "stdout_head": "",
+      "stderr": "agent-blame: error: not inside a git repository (looked up from C:\\Users\\VARTIA~1\\AppData\\Local\\Temp)\n",
+      "label": "not a repo"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--frobnicate"
+      ],
+      "rc": 2,
+      "seconds": 0.12,
+      "stdout_head": "",
+      "stderr": "usage: agent-blame [-h] [--history] [--risk] [--diff] [--commit REV]\n                   [--staged] [--json] [--verbose] [--cwd CWD] [--version]\n                   [target]\nagent-blame: error: unrecognized arguments: --frobnicate\n",
+      "label": "unknown flag"
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "nope/nothere.py:1"
+      ],
+      "rc": 0,
+      "seconds": 0.24,
+      "stdout_head": "WHY DOES THIS CODE EXIST?\n\n  Target: nope/nothere.py:1\n\nConfidence\n  Level: INSUFFICIENT\n  Score: 0.00\n    - target lines could not be blamed (missing file or out-of-range line); no line-anchored evidence\n\nHistorical removal risk\n  Level: UNKNOWN\n\nNote: this is historical evidence, not a safety guarantee. The developer makes the final decision.\n\nWarnings\n  ! file nope/nothere.py does not exist at ",
+      "label": "missing file"
+    }
+  ],
+  "personas": {
+    "p1_git_expert": {
+      "profile": "experienced Git user; fluent in blame/log/show; likely to verify tool claims with git",
+      "task": "B - before modifying code",
+      "brief": "You need to change Session.request in requests. Before changing it, find out what historical information you should know: who calls it, whether it moved, previous changes, regressions, risk.",
+      "target": "src/requests/sessions.py:324",
+      "repo": "requests",
+      "manual_probe": [
+        {
+          "cmd": [
+            "git",
+            "blame",
+            "-L",
+            "324,324",
+            "src/requests/sessions.py"
+          ],
+          "rc": 0,
+          "seconds": 0.03,
+          "out_head": "561e4b688 (Nate Prewitt 2026-05-03 13:38:48 -0600 324)         if \"Authorization\" in headers and self.should_strip_auth(original_url, url):\n"
+        },
+        {
+          "cmd": [
+            "git",
+            "log",
+            "--oneline",
+            "-5",
+            "--",
+            "src/requests/sessions.py"
+          ],
+          "rc": 0,
+          "seconds": 0.02,
+          "out_head": "661970d1 Disable commonly ignored Pyright linting rules (#7497)\ncd90742e docs: indent continuation line in Session.get :param params: (#7460)\ne511bc72 Fix mutability issues with headers input types (#"
+        }
+      ],
+      "ab_runs": [
+        {
+          "repo": "requests",
+          "args": [
+            "src/requests/sessions.py:324"
+          ],
+          "rc": 0,
+          "seconds": 0.59,
+          "stdout_head": "WHY DOES THIS CODE EXIST?\n\n  Target: src/requests/sessions.py:324\n\nConfidence\n  Level: HIGH\n  Score: 0.85\n    - 10 supporting evidence item(s)\n    - 1 counter-evidence item(s)\n\nFacts\n  ✓ line 324 introduced by 561e4b68: Add inline types to Requests (#7272)\n\nInferences\n  · Original purpose may no longer apply: later commits removed lines from this file. The current code may be retained for a differ"
+        },
+        {
+          "repo": "requests",
+          "args": [
+            "--risk",
+            "src/requests/sessions.py:324"
+          ],
+          "rc": 0,
+          "seconds": 0.59,
+          "stdout_head": "CHANGE / REMOVAL ANALYSIS\n\n  Target: src/requests/sessions.py:324\n\nConfidence\n  Level: HIGH\n  Score: 0.85\n    - 10 supporting evidence item(s)\n    - 1 counter-evidence item(s)\n\nFacts\n  ✓ line 324 introduced by 561e4b68: Add inline types to Requests (#7272)\n\nInferences\n  · Original purpose may no longer apply: later commits removed lines from this file. The current code may be retained for a differ"
+        },
+        {
+          "repo": "requests",
+          "args": [
+            "--json",
+            "src/requests/sessions.py:324"
+          ],
+          "rc": 0,
+          "seconds": 0.6,
+          "json": {
+            "tool": "agent-blame",
+            "version": "0.1.0",
+            "target": {
+              "file": "src/requests/sessions.py",
+              "start_line": 324,
+              "end_line": 324
+            },
+            "mode": "why",
+            "repository": {
+              "root": "C:\\Users\\VARTIA~1\\AppData\\Local\\Temp\\ab-eval\\requests",
+              "head": "8068356288978c4f54661ae6f95afe0e0831885e",
+              "shallow": false
+            },
+            "confidence": {
+              "level": "HIGH",
+              "score": 0.85,
+              "reasons": [
+                "10 supporting evidence item(s)",
+                "1 counter-evidence item(s)"
+              ]
+            },
+            "facts": [
+              {
+                "kind": "blame",
+                "line": 324,
+                "commit": "561e4b6889f53584c39a67f8794c53a414f68481",
+                "summary": "Add inline types to Requests (#7272)",
+                "author": "Nate Prewitt",
+                "date": "2026-05-03T19:38:48Z",
+                "text": "line 324 introduced by 561e4b68: Add inline types to Requests (#7272)"
+              }
+            ],
+            "inferences": [
+              {
+                "text": "Original purpose may no longer apply: later commits removed lines from this file. The current code may be retained for a different reason (or may be superseded).",
+                "evidence_kinds": [
+                  "deleted_lines"
+                ],
+                "confidence": "LOW"
+              }
+            ],
+            "evidence": [
+              {
+                "kind": "introduced_by",
+                "commit": "561e4b6889f53584c39a67f8794c53a414f68481",
+                "text": "lines 324-324 introduced by 561e4b68: Add inline types to Requests (#7272)",
+                "weight": 0.3,
+                "reasons": [
+                  "direct line introduction via git blame"
+                ],
+                "is_counter": false
+              },
+              {
+                "kind": "same_commit_test",
+                "commit": "561e4b6889f53584c39a67f8794c53a414f68481",
+                "text": "commit 561e4b68 added test file(s): tests/test_requests.py",
+                "weight": 0.2,
+                "reasons": [
+                  "test introduced together with the code"
+                ],
+                "is_counter": false
+              },
+              {
+                "kind": "live_caller",
+                "commit": null,
+                "text": "confirmed live caller: src/requests/sessions.py:SessionRedirectMixin.resolve_redirects",
+                "weight": 0.2,
+                "reasons": [
+                  "DIRECT_CALL at src/requests/sessions.py:273"
+                ],
+                "is_counter": false
+              },
+              {
+                "kind": "modified_by",
+                "commit": "661970d171d9c3e12e4c789c4768db647d8c4da0",
+                "text": "later commit 661970d1 modified the file: Disable commonly ignored Pyright linting rules (#7497)",
+                "weight": 0.18,
+                "reasons": [
+                  "later modification of the target file"
+                ],
+                "is_counter": false
+              },
+              {
+                "kind": "modified_by",
+                "commit": "cd90742ed94d901759e26766197d0ce7c7bd9c8e",
+                "text": "later commit cd90742e modified the file: docs: indent continuation line in Session.get :param params: (#7460)",
+                "weight": 0.18,
+                "reasons": [
+                  "later modification of the target file"
+                ],
+                "is_counter": false
+              },
+              {
+                "kind": "modified_by",
+                "commit": "e511bc72777a94c45d004e010c597925092e1efe",
+                "text": "later commit e511bc72 modified the file: Fix mutability issues with headers input types (#7431)",
+                "weight": 0.18,
+                "reasons": [
+                  "later modification of the target file"
+                ],
+                "is_counter": false
+              },
+              {
+                "kind": "modified_by",
+                "commit": "86b378d3f60f828daa13ca50aa82e287ff7b66b4",
+                "text": "later commit 86b378d3 modified the file: Align Session.get parameters with requests.get (#7429)",
+                "weight": 0.18,
+                "reasons": [
+                  "later modification of the target file"
+                ],
+                "is_counter": false
+              },
+              {
+                "kind": "modified_by",
+                "commit": "b684dcb9bbf3aa557d1238e72062c4a29737dd1c",
+                "text": "later commit b684dcb9 modified the file: sessions: fix hooks type (#7425)",
+                "weight": 0.18,
+                "reasons": [
+                  "later modification of the target file"
+                ],
+                "is_counter": false
+              },
+              {
+                "kind": "fix_related",
+                "commit": "e511bc72777a94c45d004e010c597925092e1efe",
+                "text": "later commit e511bc72 references a fix/regression: Fix mutability issues with headers input types (#7431)",
+                "weight": 0.15,
+                "reasons": [
+                  "later commit message references fix/regression (weak signal)"
+                ],
+                "is_counter": false
+              },
+              {
+                "kind": "fix_related",
+                "commit": "b684dcb9bbf3aa557d1238e72062c4a29737dd1c",
+                "text": "later commit b684dcb9 references a fix/regression: sessions: fix hooks type (#7425)",
+                "weight": 0.15,
+                "reasons": [
+                  "later commit message references fix/regression (weak signal)"
+                ],
+                "is_counter": false
+              }
+            ],
+            "counter_evidence": [
+              {
+                "kind": "deleted_lines",
+                "commit": null,
+                "text": "5 later commit(s) removed lines from src/requests/sessions.py",
+                "weight": -0.15,
+                "reasons": [
+                  "later commits delete lines in this file (approximate range mapping - documented limitation)"
+                ],
+                "is_counter": true
+              }
+            ],
+            "regressions": [],
+            "callers": [
+              {
+                "symbol": "src/requests/sessions.py:SessionRedirectMixin.resolve_redirects",
+                "path": "src/requests/sessions.py",
+                "name": "SessionRedirectMixin.resolve_redirects",
+                "line": 273,
+                "call_sites": 1,
+                "relationship": "DIRECT_CALL",
+                "status": "LIVE",
+                "confidence": "HIGH",
+                "text": "SessionRedirectMixin.resolve_redirects → rebuild_auth()  DIRECT_CALL at src/requests/sessions.py:273"
+              }
+            ],
+            "symbol": {
+              "path": "src/requests/sessions.py",
+              "name": "SessionRedirectMixin.rebuild_auth",
+              "kind": "method",
+              "start_line": 309,
+              "end_line": 332
+            },
+            "movement": null,
+            "history": [
+              {
+                "sha": "661970d171d9c3e12e4c789c4768db647d8c4da0",
+                "date": "2026-06-08T19:33:26+02:00",
+                "subject": "Disable commonly ignored Pyright linting rules (#7497)",
+                "author": "Joren Hammudoglu"
+              },
+              {
+                "sha": "cd90742ed94d901759e26766197d0ce7c7bd9c8e",
+                "date": "2026-05-18T17:02:35+02:00",
+                "subject": "docs: indent continuation line in Session.get :param params: (#7460)",
+                "author": "aldbr"
+              },
+              {
+                "sha": "e511bc72777a94c45d004e010c597925092e1efe",
+                "date": "2026-05-13T13:16:50-06:00",
+                "subject": "Fix mutability issues with headers input types (#7431)",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "86b378d3f60f828daa13ca50aa82e287ff7b66b4",
+                "date": "2026-05-11T13:24:34-06:00",
+                "subject": "Align Session.get parameters with requests.get (#7429)",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "b684dcb9bbf3aa557d1238e72062c4a29737dd1c",
+                "date": "2026-05-11T18:14:13+02:00",
+                "subject": "sessions: fix hooks type (#7425)",
+                "author": "Sebastian Meyer"
+              },
+              {
+                "sha": "561e4b6889f53584c39a67f8794c53a414f68481",
+                "date": "2026-05-03T13:38:48-06:00",
+                "subject": "Add inline types to Requests (#7272)",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "ef439eb779c1eba7cbdeeeb302b11e1e061b4b7d",
+                "date": "2026-04-05T09:31:02-06:00",
+                "subject": "Prevent Response self-reference in redirect history (#7328)",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "5f338446f9eabd956e7e132668f330d9de4fc368",
+                "date": "2026-02-13T06:22:04+03:30",
+                "subject": "Update docstring for Session.verify to include string support (#6859) (#6865)",
+                "author": "m0d3v"
+              },
+              {
+                "sha": "f8bec2f7ca9d7c03981a12ff8866a9b3923f1699",
+                "date": "2026-01-30T14:10:27-07:00",
+                "subject": "Fix CI and build failures (#7190)",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "d58d8aa2f45c3575268d6d5250745ef69f9cf8b7",
+                "date": "2025-07-17T19:09:19-07:00",
+                "subject": "docs: clarify timeout parameter uses seconds in Session.request (#6994)",
+                "author": "Quaylyn Rimer"
+              },
+              {
+                "sha": "d63e94f552ebf77ccf45d97e5863ac46500fa2c7",
+                "date": "2023-08-13T14:46:13-07:00",
+                "subject": "Move to src directory (#6506)",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "8112fcc7beb15e1cdc66180c10a3290174866828",
+                "date": "2023-08-12T12:03:10-07:00",
+                "subject": "Pre commit update (#6498)",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "fecf3dc472ddc78e20e96ea0b18e1589110c1d5e",
+                "date": "2023-07-30T09:01:42+08:00",
+                "subject": "add docstring parameter `hooks` (#6456)",
+                "author": "cpzt"
+              },
+              {
+                "sha": "6e5b15d542a4e85945fd72066bb6cecbc3a82191",
+                "date": "2023-05-22T08:36:22-07:00",
+                "subject": "Fix linting issues",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "74ea7cf7a6a27a4eeb2ae24e162bcc942a6706d5",
+                "date": "2023-05-22T08:08:57-07:00",
+                "subject": "Merge pull request from GHSA-j8r2-6x86-q33q",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "2a6f290bc09324406708a4d404a88a45d848ddf9",
+                "date": "2022-04-29T13:16:58-06:00",
+                "subject": "Add automatic code formatting to Requests (#6095)",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "8bce583b9547c7b82d44c8e97f37cf9a16cbe758",
+                "date": "2022-03-25T10:50:33-06:00",
+                "subject": "Farewell, sweet Concorde!",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "79c4a017fe341fb989d3a7876cf4e44b87601b58",
+                "date": "2022-02-25T11:25:20-07:00",
+                "subject": "Fix environment CA Bundle resolution",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "99b3b492418d0751ca960178d274f89805095e4c",
+                "date": "2021-11-24T11:21:01-08:00",
+                "subject": "Refactor rebuild_proxies to allow proxy resolution (#5924)",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "6de4f104cd8813e3fb2fca6c8297211794728cad",
+                "date": "2020-12-15T05:49:49+06:00",
+                "subject": "Change docs title to requests.sessions",
+                "author": "Shouro"
+              },
+              {
+                "sha": "60ea7f0c2def461a9ddc20e7af0fc90b68dbe0de",
+                "date": "2020-12-08T18:37:18+01:00",
+                "subject": "#5677: Rebuild proxies on Session#send",
+                "author": "Mateus Dubiela Oliveira"
+              },
+              {
+                "sha": "d1ca591c0fc0cfac634c74ed8b283c47ecffa9f8",
+                "date": "2020-11-27T17:05:17+01:00",
+                "subject": "Revert \"New helper method `set_http_proxy` in `Session` to set proxies in a more user friendly way\"",
+                "author": "Sylvain MARIE"
+              },
+              {
+                "sha": "4b66260cb7c88a41a971d2458d75efd556f2e00e",
+                "date": "2020-11-27T11:51:16+01:00",
+                "subject": "New helper method `set_http_proxy` in `Session` to set proxies in a more user friendly way",
+                "author": "Sylvain MARIE"
+              },
+              {
+                "sha": "02eb5a2cd34d36548ebb08528c73ca66c2a398d9",
+                "date": "2020-08-16T19:31:05-07:00",
+                "subject": "Document the dangers of using verify=False",
+                "author": "Matt Silverlock"
+              },
+              {
+                "sha": "fa2dbe9a91764734a23104f9a4bde2a6d2bd9cde",
+                "date": "2020-06-15T20:14:29+10:00",
+                "subject": "Remove what appears to be an un-needed call to self.resolve_redirects when not following redirects as part of creating a request's history.",
+                "author": "David Black"
+              },
+              {
+                "sha": "80011a7917afe2cd6a5fa8359e7ea90203880b3c",
+                "date": "2019-06-04T16:05:28-04:00",
+                "subject": "Remove an obsolete attribute from __attrs__",
+                "author": "Ned Batchelder"
+              },
+              {
+                "sha": "09fd857eb1448a8234e39bc39e2c795d4c980bfb",
+                "date": "2019-09-19T07:34:55-07:00",
+                "subject": "Revert \"Add trusted domains\"",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "9cdf29410778f31b88c48385c4a0fdf96fa10bd1",
+                "date": "2019-08-13T22:58:54+01:00",
+                "subject": "Updated references to previous requests/requests GitHub path",
+                "author": "Nihaal"
+              },
+              {
+                "sha": "45c2e679e0923cd8519db31b31d0573928c6d1f4",
+                "date": "2019-06-24T10:12:38-07:00",
+                "subject": "Update sessions.py",
+                "author": "Alan Yee"
+              },
+              {
+                "sha": "47cb8bae1afedb600007683048eff4572850a34e",
+                "date": "2019-05-29T11:49:44-07:00",
+                "subject": "Update sessions.py",
+                "author": "Alan Yee"
+              },
+              {
+                "sha": "177f4dd2a497e3db0e9d62ed0958183f4e9609c9",
+                "date": "2019-02-17T19:06:01+01:00",
+                "subject": "[fix] fix failing doctests in requests/* [add] add --doctest-modules in pytest.ini file as addopts [add] add myself to AUTHORS",
+                "author": "aless10"
+              },
+              {
+                "sha": "fbe48fbb7c5b96cde3a16453311e45f723516afd",
+                "date": "2019-02-15T10:40:24+08:00",
+                "subject": "Add trusted domains",
+                "author": "Jake Treacher"
+              },
+              {
+                "sha": "2aab9a9a39fdfdfbd37cc8494259cb0ebb36a5e9",
+                "date": "2018-12-29T10:37:21-05:00",
+                "subject": "Remove internal use of unnecessary compat shim for OrderedDict",
+                "author": "Jon Dufresne"
+              },
+              {
+                "sha": "ea9436a5d6a5934a906e91202349aabf9af75d15",
+                "date": "2018-10-28T23:17:39-07:00",
+                "subject": "proper handling for default ports in auth stripping",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "89ab030cdb83a728a30e172bc65d27ba214d2eda",
+                "date": "2017-06-04T14:12:08-03:00",
+                "subject": "Use comprehensions whenever possible",
+                "author": "Hugo Osvaldo Barrera"
+              },
+              {
+                "sha": "b0ad2499c8641d29affc90f565e6628d333d2a96",
+                "date": "2018-09-30T17:14:40-05:00",
+                "subject": "Prefer https:// for URLs throughout project",
+                "author": "Jon Dufresne"
+              },
+              {
+                "sha": "857e9b7ac20c3accf4cc328f594aecb8b6a644a6",
+                "date": "2018-08-14T13:30:43+02:00",
+                "subject": "Rework authorization stripping logic as discussed",
+                "author": "Bruce Merry"
+              },
+              {
+                "sha": "3331e2aecdbf575dd60abef4df79c52d78610a83",
+                "date": "2018-06-28T16:38:42+02:00",
+                "subject": "Strip Authorization header whenever root URL changes",
+                "author": "Bruce Merry"
+              },
+              {
+                "sha": "2d1b4482c5916433a642d66c6b3d0cd28058b39e",
+                "date": "2018-07-13T11:38:56+02:00",
+                "subject": "Document that 'data' can be a list of tuples everywhere",
+                "author": "Matthieu Moy"
+              },
+              {
+                "sha": "1c13c5e6f35cf05c4de758714bc99919e9bbbb43",
+                "date": "2018-06-13T12:43:05-04:00",
+                "subject": "Document that `requests.session()` is depreciated",
+                "author": "Steven M. Vascellaro"
+              },
+              {
+                "sha": "7e297ed95bdbd1018657f5d6000379ecdfa54423",
+                "date": "2018-02-04T20:15:31-08:00",
+                "subject": "Separate collections from collections.abc",
+                "author": "Raymond Hettinger"
+              },
+              {
+                "sha": "f60324a3de41c10dd7af17cadd4322c895068a25",
+                "date": "2018-01-07T17:24:09-08:00",
+                "subject": "append previous url fragment on redirect",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "a05aac7007dd802401d59b6380ef95095836ed9b",
+                "date": "2017-10-01T01:08:14+09:00",
+                "subject": "avoid import platform",
+                "author": "INADA Naoki"
+              },
+              {
+                "sha": "d3f14af44d9460a17c79de19ebdb65b3eec2e534",
+                "date": "2017-10-18T19:27:06+02:00",
+                "subject": "Fix case-insensitive comparison in get_adapter()",
+                "author": "Alvaro Gutierrez Perez"
+              },
+              {
+                "sha": "ec5804c706fcf2260ff85132b878851ffbbc2a6f",
+                "date": "2017-10-15T20:04:51+03:00",
+                "subject": "Python 3.3 has already been dropped (#4231)",
+                "author": "Hugo"
+              },
+              {
+                "sha": "667896c557718114fcb1c365f29e5d04413bff84",
+                "date": "2017-07-26T15:29:32-04:00",
+                "subject": "some docs on request redirect detection",
+                "author": "jonathan vanasco"
+              },
+              {
+                "sha": "d8c2fdf92f6f2124bb4ef73dd898f1c1824b7c9b",
+                "date": "2017-07-20T10:06:19+02:00",
+                "subject": "Use 'prefix' instead of 'key' in session docstring",
+                "author": "Alex Muller"
+              },
+              {
+                "sha": "c6a634715637e971e485766bfa37c73613ab7b82",
+                "date": "2017-06-10T20:38:02-03:00",
+                "subject": "Remove exec permission from files that shouldn't have it",
+                "author": "Justin Mayhew"
+              },
+              {
+                "sha": "04ed1e512214a9065ee083b525f2a31d43a82aeb",
+                "date": "2017-05-29T23:02:23-04:00",
+                "subject": "cleanup sessions.py",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "86f8cb8a35ecde88af1eec344498799164b10cb0",
+                "date": "2017-05-29T09:53:24-07:00",
+                "subject": "Remove session redirect cache",
+                "author": "Benjamin Congdon"
+              },
+              {
+                "sha": "7f14db17c8612aed71a181b084455b71e130ffc8",
+                "date": "2017-05-29T12:11:43-04:00",
+                "subject": "new requests namespace",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "6ef7298466076eb9e196ff430f9f1d2ddad44012",
+                "date": "2017-05-26T22:49:43-04:00",
+                "subject": "fix sessions.py",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "8c2a36140b32975034c8ed20d034900dc4904f96",
+                "date": "2017-05-26T22:08:46-04:00",
+                "subject": "fix for python 3",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "a7239aab84b59534fb5e6eb7b83a97dcf913f8de",
+                "date": "2017-05-26T21:23:55-04:00",
+                "subject": "feedback from @sigmavirus42",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "dfd667df96f9d8102100fdf85292e6dbf4b4e22e",
+                "date": "2017-05-26T21:17:13-04:00",
+                "subject": "who wrote this shit",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "f41560c5d46e8cbb8d8f741b2f7d2da29a9d6b94",
+                "date": "2017-05-26T21:15:58-04:00",
+                "subject": "fix the tests",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "ce64cce14ef5914216fe52a40496f47b4631d13c",
+                "date": "2017-05-26T21:07:37-04:00",
+                "subject": "API improvements",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "d89f8c0d70195d1ee707426ac7f3bdab870e0a18",
+                "date": "2017-04-24T08:22:56+01:00",
+                "subject": "Fix up Appveyor testing",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "722b1dae96b0523dde5e01351dd743f102090f53",
+                "date": "2017-04-17T21:29:40+03:00",
+                "subject": "fix handle of non-ascii location on redirects",
+                "author": "shmuelamar"
+              },
+              {
+                "sha": "a3e597c17112da2d9520e27e09159c29ac4b8351",
+                "date": "2017-04-12T19:31:27+03:00",
+                "subject": "fix unicode decode error on py2 when handling redirect without scheme",
+                "author": "shmuelamar"
+              },
+              {
+                "sha": "ead8fba84b12e7496c65272a07de47d553aa0ca0",
+                "date": "2017-04-05T15:51:58+01:00",
+                "subject": "Fixes DeprecationWarnings in Python 3.6 due to invalid escape sequences. Fixes #3954",
+                "author": "Ruben Dura Tari"
+              },
+              {
+                "sha": "a63ae02e345ef772d96802b1dd3eee730144e16b",
+                "date": "2017-04-02T20:29:48+10:00",
+                "subject": "Update sessions.py",
+                "author": "Anthony Shaw"
+              },
+              {
+                "sha": "4207867aaf917ed8d223064cc5c163dfe027dc00",
+                "date": "2017-03-22T21:26:47+01:00",
+                "subject": "PR review fixes: - used httpbin_secure for tests - updated docstring related to `verify` param\" - used TLS acronym instead of SSL",
+                "author": "Bastien Gérard"
+              },
+              {
+                "sha": "70f31a3166c1f9470b5cfad888f828357c1daadd",
+                "date": "2017-02-10T13:53:23-05:00",
+                "subject": "* initial attempt at `get_redirect_target` * removing the `i` from the redirect detection while-loop",
+                "author": "jonathan vanasco"
+              },
+              {
+                "sha": "85400d8d6751071ef78f042d1efa72bdcf76cc0e",
+                "date": "2016-09-06T16:24:35-07:00",
+                "subject": "Allow use of 'no_proxy' in the proxies argument",
+                "author": "John L. Villalovos"
+              },
+              {
+                "sha": "40402cd0dd044b640b984d25233e1095fae9ec16",
+                "date": "2016-10-27T15:52:31-06:00",
+                "subject": "adding rewind for re-POST bodies",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "087aeacee570e3e3adc6103015d4f8b056705850",
+                "date": "2016-09-27T20:36:42-07:00",
+                "subject": "Change module of internal references to to_native_str()",
+                "author": "Brian Bamsch"
+              },
+              {
+                "sha": "08a158f4868004586c6ab2e866b1530124dbd0fe",
+                "date": "2016-09-18T19:13:50-06:00",
+                "subject": "converting update call to merge_cookies call for cookielib compatibility",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "80f304fd30d926bbe9626c4a02146dcb4aa2e2e7",
+                "date": "2016-08-26T15:17:31+02:00",
+                "subject": "Specify self.cert is used for SSL client certificates",
+                "author": "Richard van den Berg"
+              },
+              {
+                "sha": "7c80222afa17e3c02a41eb465f886699dfd56687",
+                "date": "2016-08-22T16:26:57-06:00",
+                "subject": "Fixed another scheme proxy over \"all\" priority",
+                "author": "Michael Hunsinger"
+              },
+              {
+                "sha": "e50c61bc866ff4358e6ef320b4f1f31b979bd45e",
+                "date": "2016-08-10T11:02:26-06:00",
+                "subject": "removing Content-Type and Transfer-Encoding headers on redirect",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "542fbbc67fd07819551012295ff5468eb2714f62",
+                "date": "2016-08-09T13:32:56+03:00",
+                "subject": "Document bunch of return types",
+                "author": "Ville Skyttä"
+              },
+              {
+                "sha": "b7809acb473cf084b467b0ec0a524c50bcbe225f",
+                "date": "2016-07-20T11:43:47-06:00",
+                "subject": "making class and function docstrings consistent",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "2d4a89f5dc561dbf062ec5c85d6f6ca32a511042",
+                "date": "2016-07-19T15:23:11-06:00",
+                "subject": "adding in pep8 fixes",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "15a3869006fa68d7ad34bc315842f2ca5b537311",
+                "date": "2016-07-19T14:51:14-06:00",
+                "subject": "making module docstrings and coding comments consistent",
+                "author": "Nate Prewitt"
+              },
+              {
+                "sha": "de4c75bbadeaf68a01bb14e25dd6c86b75404fd6",
+                "date": "2016-06-01T11:00:33-05:00",
+                "subject": "Update documentation of Session.max_redirects",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "0838685dabca56b3fc985b92feca9c739700129e",
+                "date": "2016-05-12T10:57:52+01:00",
+                "subject": "Replace tab with appropriate spaces.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "1121f8b915000d8fd60fb8015286b9c9fd8abebc",
+                "date": "2016-05-10T10:24:10-04:00",
+                "subject": "Support ALL_PROXY environment variable",
+                "author": "Brett Higgins"
+              },
+              {
+                "sha": "ae1ac2d4e075fddf67b81e9aa19fbaf6e2c40941",
+                "date": "2016-04-21T08:12:05-07:00",
+                "subject": "Flip conditional in session.send()",
+                "author": "Kevin Burke"
+              },
+              {
+                "sha": "2981366f56d1e5b8d6cd26ca5b33d52fc55515c9",
+                "date": "2016-04-11T14:33:23+08:00",
+                "subject": "add rtype in session.request",
+                "author": "liuyang"
+              },
+              {
+                "sha": "f24d56a1ce658a20577517d05bcb92e44e3ffc53",
+                "date": "2016-03-17T23:16:39-05:00",
+                "subject": "Consolidate logic for changing method during redirects",
+                "author": "Ben"
+              },
+              {
+                "sha": "fc512d89245c4ee1f4b6d6f0445bc962a0621288",
+                "date": "2016-02-05T17:51:09-05:00",
+                "subject": "Don't use redirect_cache if allow_redirects=False",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "6a8a480d6c535e8fd52526875296576c5309203c",
+                "date": "2016-01-20T10:48:12-08:00",
+                "subject": "Review changes to TooManyRedirect exception with response",
+                "author": "Ryan Munro"
+              },
+              {
+                "sha": "e6f218f3f6c365bc919218fae9d0726473043079",
+                "date": "2016-01-19T16:44:58-08:00",
+                "subject": "Return request & response with TooManyRedirects",
+                "author": "Ryan Munro"
+              },
+              {
+                "sha": "9aca57d4bf7fe7906dd7b6d9e7c4836b6f38735d",
+                "date": "2015-12-11T16:47:47-05:00",
+                "subject": "Revert changes to params",
+                "author": "Brian Samek"
+              },
+              {
+                "sha": "9a20afd6b5140da4b9f187a3c0c6ea7010baeee9",
+                "date": "2015-12-11T13:32:09-05:00",
+                "subject": "Refactor default params",
+                "author": "Brian Samek"
+              },
+              {
+                "sha": "3ad66349ea651d13459d7cd2db1613c1b91b40e1",
+                "date": "2015-12-09T11:21:21-05:00",
+                "subject": "Add hint to :param verify.",
+                "author": "Brian Samek"
+              },
+              {
+                "sha": "23d9b077d8b2db9d13c1edd97ffb65b0582631d0",
+                "date": "2015-12-01T12:24:56+01:00",
+                "subject": "Fix typos",
+                "author": "Jakub Wilk"
+              },
+              {
+                "sha": "d8f28f4bca40715a3b2929ae639868f235bcaa38",
+                "date": "2015-10-15T14:32:35+02:00",
+                "subject": "Fixed usage example in sessions.py",
+                "author": "Daniel Müller"
+              },
+              {
+                "sha": "2df3c7c75dd4e3c825421da3aaa4b08bd91d4afb",
+                "date": "2015-10-12T10:50:37+01:00",
+                "subject": "Move to_native_string for methods to prepare()",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "63b3b9be55e0a836ec312dd2197366c260fd2eb0",
+                "date": "2015-10-02T14:47:50+02:00",
+                "subject": "Clarified description for option \"trust_env\"",
+                "author": "Doctor-love"
+              },
+              {
+                "sha": "2c8721540ad70cadb3c71912b1ab8577f2f8fd53",
+                "date": "2015-08-27T17:26:45Z",
+                "subject": "Fix documentation for proxies in the Session class",
+                "author": "Jason Grout"
+              },
+              {
+                "sha": "8b03cd96cbdc79666ae49e1b0b63b53ddb4c6bdf",
+                "date": "2015-08-24T18:28:41-05:00",
+                "subject": "Include file-like object in data arg description",
+                "author": "Everett Toews"
+              },
+              {
+                "sha": "4947cd01ae4ebcfb1ce97345d1e9232c331331da",
+                "date": "2015-08-21T08:44:09+01:00",
+                "subject": "Avoid altering dictionary size during iteration, by gathering keys that need to be deleted first.",
+                "author": "Martijn Pieters"
+              },
+              {
+                "sha": "f40bd0f7074ccda6be66c77f39442770d7669af0",
+                "date": "2015-08-15T11:45:44+02:00",
+                "subject": "Docs: Fix links to `timeouts` section by using :ref: instead of",
+                "author": "Lukas Graf"
+              },
+              {
+                "sha": "75c1776bde6398489c1b6722cf4f612b0061bfc1",
+                "date": "2015-08-07T20:21:39+02:00",
+                "subject": "Document use of sessions as context managers.",
+                "author": "Lukas Graf"
+              },
+              {
+                "sha": "276202f51ee9967969eafc1880c4785c80d63d3b",
+                "date": "2015-08-04T22:47:12+01:00",
+                "subject": "Fix merge setting for not preserving original order of dict parameters",
+                "author": "Akira J"
+              },
+              {
+                "sha": "587eb193ddbc2dfc10c2bdbf1718cd2267a0e77f",
+                "date": "2015-03-18T11:29:18Z",
+                "subject": "fix resolve redirect to pass all original arguments",
+                "author": "Paul van der Linden"
+              },
+              {
+                "sha": "f7c85685a8e484715649c13bacae6adc7f5f3908",
+                "date": "2015-03-14T11:29:05Z",
+                "subject": "Add explanatory comment for cookie change",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "3bd8afbff29e50b38f889b2f688785a669b9aafc",
+                "date": "2015-03-14T08:49:55Z",
+                "subject": "Don't ascribe cookies to the target domain.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "2a5364cf72fb8156773d6304c0e3e21472de8002",
+                "date": "2014-11-23T17:54:44-08:00",
+                "subject": "url was already parsed, don't urlparse twice",
+                "author": "Matt Robenolt"
+              },
+              {
+                "sha": "c8baf881257ff3194879ad79bef81c27007b4dcf",
+                "date": "2014-11-17T22:13:35-06:00",
+                "subject": "Properly serialize RecentlyUsedContainers for cache",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "29ef1081583115c8bb2c8a592b883dc7c835240c",
+                "date": "2014-10-31T21:20:04-05:00",
+                "subject": "Use to_native_string instead of builtin_str",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "387c8f852cbb6ee2bdbb073b23871e18b7767d53",
+                "date": "2014-10-23T20:49:18-07:00",
+                "subject": "Cap the redirect_cache size to prevent memory abuse",
+                "author": "Matt Robenolt"
+              },
+              {
+                "sha": "0e4efab270780726fbf4f8b6704f8f22741399d6",
+                "date": "2014-10-05T18:55:59-05:00",
+                "subject": "Re-order params for backwards compat",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "b1f3a2dd66f1da05976d7f60261ce0665d4b6469",
+                "date": "2014-10-04T23:04:35-05:00",
+                "subject": "Remove timeout from __attrs__",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "8ed941fa6991355753e698f6b253096d57f6c7e4",
+                "date": "2014-09-30T16:03:31-05:00",
+                "subject": "Fix a couple of issues I noticed",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "ac44b482971d93cf5e7d4985a0b3fff52b3d2059",
+                "date": "2014-09-22T21:01:36-05:00",
+                "subject": "Avoid getting stuck in a loop",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "27c83f71770a2a64d56b7d53f9cc67f53cf70ccd",
+                "date": "2014-09-07T12:02:23-05:00",
+                "subject": "Fix #2207",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "dfa41afd43a15222eb7a2db35feadd36dba4b445",
+                "date": "2014-08-29T11:33:46-07:00",
+                "subject": "Document Timeout behaviour",
+                "author": "Kevin Burke"
+              },
+              {
+                "sha": "8f17741849edb5e7eba0356f90cb17e43c938a2f",
+                "date": "2014-07-17T12:34:31-07:00",
+                "subject": "Adds json parameter for POST requests",
+                "author": "Carol Willing"
+              },
+              {
+                "sha": "596ca83f0c66460deb82af07b13ce724b9f46474",
+                "date": "2014-08-24T09:54:56-05:00",
+                "subject": "Update verify check and doc-string",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "b4a7906bca61f94a5b7a0e177b0d85b3ee11604f",
+                "date": "2014-08-23T15:50:15-05:00",
+                "subject": "Add Session method to merge environment settings with per-request settings",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "c7e087cf562d173ec62fa384aa028746798f96c8",
+                "date": "2014-08-21T11:05:02-07:00",
+                "subject": "Added space and sentence case",
+                "author": "ContinuousFunction"
+              },
+              {
+                "sha": "2fc6e8a894a5378dd16b2653df9ccf875d0bddf8",
+                "date": "2014-08-19T10:51:26-07:00",
+                "subject": "Update on Tracking Previous Requests",
+                "author": "ContinuousFunction"
+              },
+              {
+                "sha": "df641e74ffa294d30f0cc9bf951b7f9614aac18d",
+                "date": "2014-08-17T19:13:26-07:00",
+                "subject": "Tracking Previous Requests",
+                "author": "ContinuousFunction"
+              },
+              {
+                "sha": "3957b0befb063ecea1c9cb3dc67b2c385ddad58e",
+                "date": "2014-07-02T10:42:00-05:00",
+                "subject": "Fix silly check",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "84f67379c8844ff109a200caa3f3e815fdf0beee",
+                "date": "2014-07-02T10:26:15-05:00",
+                "subject": "Update how we check verify when inspecting env variables",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "c3444f8c7abdda2642f59109d6961bdf8511f38c",
+                "date": "2014-06-12T08:25:21-04:00",
+                "subject": "don't make duplicate requests for permanent redirects",
+                "author": "Eric L Frederich"
+              },
+              {
+                "sha": "ec3a2e6f04a6e268cbae747e9f1ff6ea4217f8b2",
+                "date": "2014-06-11T11:08:10-04:00",
+                "subject": "rename resume/resume_incomplete to permanent_redirect according to rfc7238",
+                "author": "Eric L Frederich"
+              },
+              {
+                "sha": "22433163b35bb451e4804b8d757ef25d58e1171a",
+                "date": "2014-06-07T09:53:12+01:00",
+                "subject": "Update trivial mentions to RFC 2616.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "59c8d813818110aac29fd104c2fa012387c2004c",
+                "date": "2014-03-10T08:07:10+01:00",
+                "subject": "Read content in Session.send instead of Adapter.send.",
+                "author": "schlamar"
+              },
+              {
+                "sha": "c2a1f28a2ebd9448be7b4c8f9207d16c894717c3",
+                "date": "2014-03-10T07:54:22+01:00",
+                "subject": "Catch possible exceptions while consuming content of redirect responses.",
+                "author": "schlamar"
+              },
+              {
+                "sha": "459f8dfccb7ee2e1dc9e041b7aebc2392219c35e",
+                "date": "2014-04-26T13:05:01+01:00",
+                "subject": "Don't repopulate proxies if we don't trust the env.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "90f73378582e4e2cbc75a189a2cfa7826824f29e",
+                "date": "2014-03-22T21:11:33Z",
+                "subject": "Style changes thanks to @sigmavirus24.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "8fc6a65be892651e6f16597fcaf9e608ab5d958b",
+                "date": "2014-03-15T12:48:29-05:00",
+                "subject": "Actually assign history",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "8d693a2a27d0a073c0d03823cab71a3716001285",
+                "date": "2014-03-15T11:38:13-05:00",
+                "subject": "Fix #1955: Do not use original request in redirect",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "daf56b3f62f91c7b6ae783ef74ee41ff3c7af89f",
+                "date": "2014-03-15T10:33:00-05:00",
+                "subject": "Fix #1960: A Response's history should be a list",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "4f6dca42ea0fb3d1c4706e63e594e43f7a3237f7",
+                "date": "2014-03-12T21:21:14Z",
+                "subject": "Remove some extraneous comments to please KR.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "4d8cb3244e8e4f84b250c10a48e025f9a8bf6137",
+                "date": "2014-03-12T19:22:40Z",
+                "subject": "Add method for rebuilding proxy configuration.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "97cf16e958a948ecf30c3019ae94f2e7ec7dcb7f",
+                "date": "2014-03-12T19:22:11Z",
+                "subject": "Move auth rebuild to its own method.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "81e88b70bd757f5ca5e9bc418a17369c13c6abf2",
+                "date": "2014-02-16T19:00:22Z",
+                "subject": "The timeout is in seconds.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "d2f647cee45fd05cc1977cc3faf4b095b5047b29",
+                "date": "2014-02-14T16:15:21-06:00",
+                "subject": "Do not set headers with None value",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "0caa2432123bab2d991e635ce558226d019d7bc7",
+                "date": "2014-02-13T14:27:42-05:00",
+                "subject": "New Response property, .is_redirect.",
+                "author": "Zack Weinberg"
+              },
+              {
+                "sha": "c042c08179cae74e7b2c520b33ea19881c0ec842",
+                "date": "2014-01-31T12:29:56-05:00",
+                "subject": "who did this",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "f74f5e3ebf0943163cd21b93fb682f790277aa19",
+                "date": "2014-01-31T12:27:05-05:00",
+                "subject": "cleanup shitty code",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "d9f34c6848b9b313beefa7d3ce05f52fdea28c27",
+                "date": "2014-01-31T07:36:44Z",
+                "subject": "Respect trust_env on redirect.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "326a22e8880c1dba52698a479eb7b6038d5b2e87",
+                "date": "2014-01-30T15:11:24Z",
+                "subject": "Better layout for checking.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "7ba5a534ae9fc24e40b3ae6c480c9075d684727e",
+                "date": "2014-01-29T19:13:46Z",
+                "subject": "Repopulate ~/.netrc auth.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "8b792be81bfaa79fde1ee8de3b72e4e07ef4f6c1",
+                "date": "2014-01-28T09:11:23-08:00",
+                "subject": "on redirect pass URL as bytes. Fixes: #1887",
+                "author": "Konstantinos Koukopoulos"
+              },
+              {
+                "sha": "a0e77064400ceb75569669d4ff5cdc9c19f98514",
+                "date": "2013-12-28T00:09:29-08:00",
+                "subject": "Fix warnings when building the docs",
+                "author": "Kevin Burke"
+              },
+              {
+                "sha": "642bbf60604d74319bd0e625277d4ac5bfe3cb9b",
+                "date": "2013-12-17T22:52:48-06:00",
+                "subject": "Fixes #1805",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "e8bdcdb0a754ce3ec46fe167dfbd0e23f22e5ff7",
+                "date": "2013-12-04T06:45:18-06:00",
+                "subject": "Address feedback from #1729",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "8bfe0d873f382ec92e4000084bb7e00505bc29b2",
+                "date": "2013-11-06T21:52:21-05:00",
+                "subject": "Store the request cookiejar in PreparedRequest.cookies fix #1728",
+                "author": "Chase Sterling"
+              },
+              {
+                "sha": "c26a6c310cf8489bb55be5b4b9899d06a2bddda9",
+                "date": "2013-11-26T15:38:48+09:00",
+                "subject": "remove unused import",
+                "author": "daftshady"
+              },
+              {
+                "sha": "1adba3c9e94a7408584d0d819da6aa47b34ed0bd",
+                "date": "2013-11-05T17:00:01+09:00",
+                "subject": "modified 'merge_cookies' and update tests. made sessions.py to use that method when merging cookies.",
+                "author": "daftshady"
+              },
+              {
+                "sha": "e40c1637c915e112fabaffb39fcd73beed56ff4b",
+                "date": "2013-11-05T16:09:49+09:00",
+                "subject": "added new method 'merge_cookies' and use it when merging session cookies with param cookies.",
+                "author": "daftshady"
+              },
+              {
+                "sha": "2bbd7ba1c2c5a56c0957be64b5f94f6a4b0243ca",
+                "date": "2013-10-29T23:18:03+09:00",
+                "subject": "Fixed #1711",
+                "author": "daftshady"
+              },
+              {
+                "sha": "3369d87da96e38772faa773b755189320ab5b81c",
+                "date": "2013-11-24T11:13:49Z",
+                "subject": "Cleanup the redirect if blocks.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "470af31f4a5e9edfae1c818f5104ee83f5f541cb",
+                "date": "2013-11-24T11:09:00Z",
+                "subject": "Handle 301s 'properly'.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "4972133a9bcbf98182a26d796e98c74453a224f9",
+                "date": "2013-11-19T19:54:46+09:00",
+                "subject": "use geturl to lower scheme",
+                "author": "daftshady"
+              },
+              {
+                "sha": "8c8938e8cb7ffded42cf463f652831ca7e88e5fc",
+                "date": "2013-11-19T18:59:22+09:00",
+                "subject": "issue #1746 : Don't lowercase the whole URL!",
+                "author": "daftshady"
+              },
+              {
+                "sha": "1511dfa637643bae5b6111a20ecb80ec9ae26032",
+                "date": "2013-11-04T22:32:17+09:00",
+                "subject": "moved logic to Session object and added test case",
+                "author": "daftshady"
+              },
+              {
+                "sha": "0cd6959f1907dc50423ca147fa797f17a64d26af",
+                "date": "2013-10-22T23:48:04+03:00",
+                "subject": "Removed extra extra parentheses in SessionRedirectMixin.resolve_redirects",
+                "author": "Can Ibanoglu"
+              },
+              {
+                "sha": "a4605fe32426bcc404ab1eb4ea4b0dde9238a3e8",
+                "date": "2013-10-07T21:17:59-05:00",
+                "subject": "Fix failing test to preserve behaviour",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "5bf396d5d12bf9debc667a509c84f640560da517",
+                "date": "2013-10-07T12:23:16-05:00",
+                "subject": "Honor session hooks",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "012f0334ce43fe23044fc58e4246a804db88650d",
+                "date": "2013-09-29T01:08:58+09:00",
+                "subject": "added param to cookiejar_from_dict instead of creating new method.",
+                "author": "daftshady"
+              },
+              {
+                "sha": "0051837af4fb8b21aac101cbb91f2f81a1853013",
+                "date": "2013-09-28T17:01:32+01:00",
+                "subject": "Correctly lowercase a redirect scheme.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "d22eaf96e2a1c64bc29579a072f67d2a9c758ef8",
+                "date": "2013-09-28T23:44:27+09:00",
+                "subject": "Fixed #1630",
+                "author": "daftshady"
+              },
+              {
+                "sha": "39fe0068aa657764778782ce4ca11d5e3ee08c66",
+                "date": "2013-09-28T16:33:05+09:00",
+                "subject": "Fixed #1630, added test case for cookie persistence.",
+                "author": "daftshady"
+              },
+              {
+                "sha": "a829ef9b46b524cf13b40d86288cb338d45665a3",
+                "date": "2013-09-10T17:52:29+05:30",
+                "subject": "Fixed persistence spelling",
+                "author": "kracekumar"
+              },
+              {
+                "sha": "056da86f6d547c727872f168608ab39a4fdbe16e",
+                "date": "2013-09-09T15:21:36+03:00",
+                "subject": "Use values() when the keys are not being used",
+                "author": "Radu Voicilas"
+              },
+              {
+                "sha": "0ab7a52f7c04998ae68ed7da442fce32293e0fb5",
+                "date": "2013-07-31T13:42:02-07:00",
+                "subject": "Merge settings when creating PreparedRequest, don't copy Request.",
+                "author": "Robert Estelle"
+              },
+              {
+                "sha": "9edba838b3c7891c955b49d680c49b4ee8e64dd4",
+                "date": "2013-07-30T22:59:11-07:00",
+                "subject": "Skip unneccessary Request.copy in Session.request",
+                "author": "Robert Estelle"
+              },
+              {
+                "sha": "b5c136152f4184387017ce570d2a499f21b6de14",
+                "date": "2013-07-30T21:39:36-07:00",
+                "subject": "Prepare requests with session settings separately from sending.",
+                "author": "Robert Estelle"
+              },
+              {
+                "sha": "286ddb672d3ff39b1807402a7d9ca569a86516d6",
+                "date": "2013-07-27T23:08:46-04:00",
+                "subject": "Take advantage of the new copy method",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "972089826e830670cdaec774bb4eb8a3f349b661",
+                "date": "2013-07-26T10:50:19-05:00",
+                "subject": "Fixed finally. Also requires updated httpbin.org",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "3becc473665438d82482b54c9596b70ad0ab0315",
+                "date": "2013-07-24T16:03:24+01:00",
+                "subject": "Comment markups, courtesy of @sigmavirus24",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "f40a1d6a8ad4ea47e4a2b92b9a13a2270c6806cf",
+                "date": "2013-07-24T13:25:59+01:00",
+                "subject": "Better cookie docs on sessions.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "188e7609b36eb2100abe3a6a5c3bbebcf1205cfb",
+                "date": "2013-06-27T16:43:40-04:00",
+                "subject": ".netrc settings shouldn't blow away explicit auth settings on a session",
+                "author": "Vikram Oberoi"
+              },
+              {
+                "sha": "716b627c1e7c86af722affe973a11df4d5812a1b",
+                "date": "2013-04-19T10:13:36+04:00",
+                "subject": "Don't reuse PreparedRequest on redirects",
+                "author": "Roman Haritonov"
+              },
+              {
+                "sha": "72e155e529ae9f1892c5dffb5a021fa36ca0243e",
+                "date": "2013-04-30T23:17:18-07:00",
+                "subject": "resolve_redirects now checks for a scheme before converting the scheme to lowercase, added tests or the scheme casing",
+                "author": "Bob Carroll"
+              },
+              {
+                "sha": "e715d7184b98f6c2a8c4810e7524e2e9a5a033c3",
+                "date": "2013-04-29T13:35:44-07:00",
+                "subject": "resolve_redirects no longer throws an InvalidSchema exception when the scheme is uppercase",
+                "author": "Bob Carroll"
+              },
+              {
+                "sha": "5e94f38001fdaccda924aab9e5f0ffc064492129",
+                "date": "2013-05-24T14:01:30-04:00",
+                "subject": "- fixed func call syntax on lower to lower() - added test cases for trying to test GETS on mixed-case schemas",
+                "author": "Viktor Haag"
+              },
+              {
+                "sha": "3004ad539875ffc2c9ec5a376af7203189ce6fe1",
+                "date": "2013-05-24T11:26:00-04:00",
+                "subject": "Lower-ify url before checking against prefix with startswith()",
+                "author": "Viktor Haag"
+              },
+              {
+                "sha": "98114245c686ef7cd62c9932071fd972ad3efedb",
+                "date": "2013-05-02T12:46:59-04:00",
+                "subject": "Refactor merge_kwargs for clarity and to fix a few bugs",
+                "author": "Chase Sterling"
+              },
+              {
+                "sha": "2b6ebd25215b528c2cad3749973084276d9d74a8",
+                "date": "2013-05-16T11:58:18+01:00",
+                "subject": "Always percent-encode location headers.",
+                "author": "Cory Benfield"
+              },
+              {
+                "sha": "4c8af1fff47eea5f52c7b333101c221399c8c613",
+                "date": "2013-05-15T13:34:09+02:00",
+                "subject": "Fixes #1320: transport adapters stored in ordered form",
+                "author": "Łukasz Langa"
+              },
+              {
+                "sha": "0c609b59abfa25e00e320034e46c5bf4443078b6",
+                "date": "2013-04-25T23:15:50-04:00",
+                "subject": "Fix session CookieJars without breaking more stuff this time",
+                "author": "Chase Sterling"
+              },
+              {
+                "sha": "9763a671da1061244aa0a98e924efa1ec8379a7b",
+                "date": "2013-04-25T22:34:51-04:00",
+                "subject": "Fix crash when session.cookies was not a RequestsCookieJar",
+                "author": "Chase Sterling"
+              },
+              {
+                "sha": "736e8cd7358a475979da9d2e525e535e81fdab18",
+                "date": "2013-04-17T12:27:06-07:00",
+                "subject": "Fix max_redirects docs issue #1301",
+                "author": "Iuri de Silvio"
+              },
+              {
+                "sha": "c5d0a0931e1a9b199ea286853fc4722d624d85ec",
+                "date": "2013-04-13T12:30:05-04:00",
+                "subject": "Change the method when it isn't already GET/HEAD",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "49a3664222d9e17ab83d089e4d1b1e30c998f59c",
+                "date": "2013-04-04T23:29:02-04:00",
+                "subject": "Don't set all session cookies on response.cookies",
+                "author": "Chase Sterling"
+              },
+              {
+                "sha": "d22ac00098475367ea0c0725d7db94d7967b09b1",
+                "date": "2013-04-04T22:11:38-04:00",
+                "subject": "fix #1287: Make sure expired cookies get removed from session.cookies",
+                "author": "Chase Sterling"
+              },
+              {
+                "sha": "1abd13700b32b82c4ce6e08e1e73be89fdbfd3e6",
+                "date": "2013-04-02T09:27:25-04:00",
+                "subject": "Closes #1280",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "54ed5ed469ff04351bfe550a6c8d49e62c535e6c",
+                "date": "2013-04-02T08:13:46-04:00",
+                "subject": "Revert \"Fix for the issue https://github.com/kennethreitz/requests/issues/1280\"",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "ca0aea640d0cce01c126220b74362c9014cabbd6",
+                "date": "2013-04-02T13:42:40+02:00",
+                "subject": "Fix for the issue https://github.com/kennethreitz/requests/issues/1280",
+                "author": "Kamil Szot"
+              },
+              {
+                "sha": "75703d57e66544ff1e6c7cbd54648b051928b1a9",
+                "date": "2013-03-31T08:22:44+03:00",
+                "subject": "fix syntax error",
+                "author": "Kenneth Reitz"
+              },
+              {
+                "sha": "325ea7b7e209de2cd895e3275bde8378a183c7e7",
+                "date": "2013-03-29T20:18:58-04:00",
+                "subject": "Use session defaults instead of arbitrary ones",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "4ffae38627ea8d4a33fc50bbbed48bd14468972c",
+                "date": "2013-03-29T20:58:15+08:00",
+                "subject": "add 'max_redirects' to Session's __attrs__ to ensure proper serialization of Session",
+                "author": "makto"
+              },
+              {
+                "sha": "0cd23d8d6e9fee70e4cc51c37e0b6a111411f2c0",
+                "date": "2013-03-28T08:33:34-04:00",
+                "subject": "Fix the tests and unseparate comments from code",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "aca91e06f2c83da1553ea8b39814c5c78cb3c433",
+                "date": "2013-03-27T23:46:21-04:00",
+                "subject": "Restore Session.request docstring",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "88177ec33fa0846aea0ecb121ffbb041c5f09cdc",
+                "date": "2013-03-27T23:30:00-04:00",
+                "subject": "Finally resolve #1084",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "478d49027fe920e334ae8eacd1182ede39f8b5f7",
+                "date": "2013-03-27T23:17:34-04:00",
+                "subject": "Add correct defaults in Session.send()",
+                "author": "Ian Cordasco"
+              },
+              {
+                "sha": "120a2f385a4d1b652451e6a6d8dc618437f72529",
+                "date": "2013-03-12T18:25:19+02:00",
+                "subject": "Do not pass cookies to resolve_redirects",
+                "author": "Miikka Koskinen"
+              },
+              {
+                "sha": "5bb2be9a2300ccc3c1901d2f85afb79cfb9e02f1",
+                "date": "2013-03-09T12:53:38+02:00",
+                "subject": "Use session cookies when following redirects",
+                "author": "Miikka Koskinen"
+              },
+              {
+                "sha": "c41932e18468caf8990611aa62b25e867e8ad4bb",
+                "date": "2013-03-12T16:04:19+01:00",
+                "subject": "Fixed some pickeling issues with HTTPAdapter and Session",
+                "author": "Florian Mueller"
+              },
+              {
+                "sha": "e706d18cf893198a26ca3f41dd5014dabd87ae89",
+                "date": "2013-03-11T18:12:34Z",
+                "subject": "Pickling of Session and HTTPAdapter + a test",
+                "author": "Darjus Loktevic"
+              },
+              {
+                "sha": "d60845303bf877dde69ae2077d695646fc2a4579",
+                "date": "2013-03-04T11:07:29-07:00",
+                "subject": "Adds __attrs__ back to Session object",
+                "author": "Andrew Jesaitis"
+              },
+              {
+                "sha": "23d8522285bd7d7b4a1da46325aeac8814d87076",
+                "date": "2013-03-03T12:01:38-05:00",
+                "subject": "Revert \"[kennethreitz/requests#1208] adding a max_retries argument\"",
+                "author": "Kenneth Reitz"
+              }
+            ],
+            "risk": {
+              "level": "HIGH",
+              "reasons": [
+                "regression/fix history around this code (2 fix-related commit(s))",
+                "tests were introduced together with this code (behavior is exercised)",
+                "frequently modified (5 later modifications)",
+                "1 confirmed live caller(s) depend on this code",
+                "lines in this file were removed by later commits (behavior may have been superseded)"
+              ]
+            },
+            "warnings": []
+          },
+          "stdout_head": "{\n  \"tool\": \"agent-blame\",\n  \"version\": \"0.1.0\",\n  \"target\": {\n    \"file\": \"src/requests/sessions.py\",\n    \"start_line\": 324,\n    \"end_line\": 324\n  },\n  \"mode\": \"why\",\n  \"repository\": {\n    \"root\": \"C:\\\\Users\\\\VARTIA~1\\\\AppData\\\\Local\\\\Temp\\\\ab-eval\\\\requests\",\n    \"head\": \"8068356288978c4f54661ae6f95afe0e0831885e\",\n    \"shallow\": false\n  },\n  \"confidence\": {\n    \"level\": \"HIGH\",\n    \"score\": 0.85"
+        }
+      ]
+    },
+    "p2_normal_dev": {
+      "profile": "normal professional developer; knows git basics (commit/push/pull), rarely digs history",
+      "task": "A - why does this code exist",
+      "brief": "You found dispatch_request in an unfamiliar codebase. Determine where it came from and why it exists.",
+      "target": "src/flask/app.py:969",
+      "repo": "flask",
+      "manual_probe": [
+        {
+          "cmd": [
+            "git",
+            "blame",
+            "-L",
+            "969,969",
+            "src/flask/app.py"
+          ],
+          "rc": 0,
+          "seconds": 0.03,
+          "out_head": "6a6496900 (David Lord 2025-09-19 16:58:48 -0700 969)     def dispatch_request(self, ctx: AppContext) -> ft.ResponseReturnValue:\n"
+        },
+        {
+          "cmd": [
+            "git",
+            "log",
+            "--oneline",
+            "-5",
+            "--",
+            "src/flask/app.py"
+          ],
+          "rc": 0,
+          "seconds": 0.02,
+          "out_head": "7203feab Fix IPv6 server name parsing\n514fc6b3 Merge branch 'stable'\n81798b40 fix typos\nfbb6f0bc all teardown callbacks are called despite errors\n7b008869 fix typing\n"
+        }
+      ],
+      "ab_runs": [
+        {
+          "repo": "flask",
+          "args": [
+            "src/flask/app.py:969"
+          ],
+          "rc": 0,
+          "seconds": 1.07,
+          "stdout_head": "WHY DOES THIS CODE EXIST?\n\n  Target: src/flask/app.py:969\n\nConfidence\n  Level: HIGH\n  Score: 0.65\n    - 14 supporting evidence item(s)\n    - 2 counter-evidence item(s)\n\nFacts\n  ✓ line 969 introduced by 6a649690: pass context through dispatch methods\n\nInferences\n  · Original purpose may no longer apply: a replacement implementation was detected, later commits removed lines from this file. The curre"
+        },
+        {
+          "repo": "flask",
+          "args": [
+            "--history",
+            "src/flask/app.py:969"
+          ],
+          "rc": 0,
+          "seconds": 1.11,
+          "stdout_head": "HISTORY\n\n  Target: src/flask/app.py:969\n\nConfidence\n  Level: HIGH\n  Score: 0.65\n    - 14 supporting evidence item(s)\n    - 2 counter-evidence item(s)\n\nFacts\n  ✓ line 969 introduced by 6a649690: pass context through dispatch methods\n\nInferences\n  · Original purpose may no longer apply: a replacement implementation was detected, later commits removed lines from this file. The current code may be ret"
+        }
+      ]
+    },
+    "p3_rarely_investigates": {
+      "profile": "developer who almost never investigates git history; uses git only for commit/push",
+      "task": "E - unfamiliar code",
+      "brief": "You inherited this repository. Pick one confusing function and investigate it.",
+      "target": "rich/console.py:1891",
+      "repo": "rich",
+      "manual_probe": [
+        {
+          "cmd": [
+            "git",
+            "blame",
+            "-L",
+            "1891,1891",
+            "rich/console.py"
+          ],
+          "rc": 0,
+          "seconds": 0.08,
+          "out_head": "ebb4eaa26 (Will McGugan 2020-10-03 12:06:19 +0100 1891)             show_locals (bool, optional): Enable display of local variables. Defaults to False.\n"
+        }
+      ],
+      "ab_runs": [
+        {
+          "repo": "rich",
+          "args": [
+            "rich/console.py:1891"
+          ],
+          "rc": 0,
+          "seconds": 1.22,
+          "stdout_head": "WHY DOES THIS CODE EXIST?\n\n  Target: rich/console.py:1891\n\nConfidence\n  Level: MEDIUM\n  Score: 0.40\n    - 267 supporting evidence item(s)\n    - 3 counter-evidence item(s)\n\nFacts\n  ✓ line 1891 introduced by ebb4eaa2: themed tracebacks\n\nInferences\n  · The introducing commit message references concurrency, correctness-related concerns; the code may have been introduced to address that area (evidence:"
+        }
+      ]
+    }
+  },
+  "time_to_answer": [
+    {
+      "question": "Where did this code come from (origin + why)?",
+      "repo": "requests",
+      "target": "src/requests/models.py:483",
+      "manual_seconds": 0.07,
+      "manual_commands": [
+        {
+          "cmd": [
+            "git",
+            "blame",
+            "-L",
+            "483,483",
+            "src/requests/models.py"
+          ],
+          "rc": 0,
+          "seconds": 0.02,
+          "out_len": 76,
+          "out_head": "561e4b688 (Nate Prewitt 2026-05-03 13:38:48 -0600 483)     def prepare_url(\n"
+        },
+        {
+          "cmd": [
+            "git",
+            "show",
+            "--stat",
+            "--format=%h %s %ad",
+            "561e4b68"
+          ],
+          "rc": 0,
+          "seconds": 0.02,
+          "out_len": 1135,
+          "out_head": "561e4b68 Add inline types to Requests (#7272) Sun May 3 13:38:48 2026 -0600\n\n .github/workflows/typecheck.yml |  32 ++++"
+        },
+        {
+          "cmd": [
+            "git",
+            "log",
+            "--oneline",
+            "-3",
+            "--",
+            "src/requests/models.py"
+          ],
+          "rc": 0,
+          "seconds": 0.02,
+          "out_len": 226,
+          "out_head": "6f66281a Add hasattr checks for remaining protocol isinstance checks (#7505)\n6f205ff4 Fix `_encode_files` detection for "
+        }
+      ],
+      "ab_seconds": 0.8,
+      "ab_rc": 0
+    },
+    {
+      "question": "Who calls this function?",
+      "repo": "requests",
+      "target": "src/requests/models.py:483",
+      "manual_seconds": 0.04,
+      "manual_commands": [
+        {
+          "cmd": [
+            "git",
+            "grep",
+            "-n",
+            "prepare_url",
+            "HEAD",
+            "--",
+            "src/"
+          ],
+          "rc": 0,
+          "seconds": 0.02,
+          "out_len": 123,
+          "out_head": "HEAD:src/requests/models.py:441:        self.prepare_url(url, params)\nHEAD:src/requests/models.py:483:    def prepare_ur"
+        },
+        {
+          "cmd": [
+            "git",
+            "grep",
+            "-n",
+            "prepare_url",
+            "HEAD",
+            "--",
+            "tests/"
+          ],
+          "rc": 0,
+          "seconds": 0.02,
+          "out_len": 173,
+          "out_head": "HEAD:tests/conftest.py:15:def prepare_url(value):\nHEAD:tests/conftest.py:36:    return prepare_url(httpbin)\nHEAD:tests/c"
+        }
+      ],
+      "ab_seconds": 0.82,
+      "ab_rc": 0
+    },
+    {
+      "question": "Was this code moved here, or introduced here?",
+      "repo": "requests",
+      "target": "src/requests/__init__.py:74",
+      "manual_seconds": 0.09,
+      "manual_commands": [
+        {
+          "cmd": [
+            "git",
+            "log",
+            "--follow",
+            "--oneline",
+            "-5",
+            "--",
+            "src/requests/__init__.py"
+          ],
+          "rc": 0,
+          "seconds": 0.02,
+          "out_len": 286,
+          "out_head": "661970d1 Disable commonly ignored Pyright linting rules (#7497)\ne50e5945 Improve static typing of 3rd party imports  (#7"
+        },
+        {
+          "cmd": [
+            "git",
+            "log",
+            "--follow",
+            "--diff-filter=R",
+            "--oneline",
+            "--",
+            "src/requests/__init__.py"
+          ],
+          "rc": 0,
+          "seconds": 0.07,
+          "out_len": 39,
+          "out_head": "d63e94f5 Move to src directory (#6506)\n"
+        }
+      ],
+      "ab_seconds": 1.24,
+      "ab_rc": 0
+    },
+    {
+      "question": "What did this commit change and why?",
+      "repo": "requests",
+      "target": "fd13816d",
+      "manual_seconds": 0.04,
+      "manual_commands": [
+        {
+          "cmd": [
+            "git",
+            "show",
+            "--stat",
+            "--format=%h %s%n%b",
+            "fd13816d"
+          ],
+          "rc": 0,
+          "seconds": 0.02,
+          "out_len": 408,
+          "out_head": "fd13816d Revert \"Fix for response with UTF-8 BOM #4976\"\nThis reverts commit 19cff44ec1b8eeec99459b504a681aa440f6344c.\nTh"
+        },
+        {
+          "cmd": [
+            "git",
+            "show",
+            "fd13816d",
+            "--",
+            "requests/models.py"
+          ],
+          "rc": 0,
+          "seconds": 0.02,
+          "out_len": 888,
+          "out_head": "commit fd13816d015c4c90ee65297fa996caea6a094ed1\nAuthor: Nate Prewitt <Nate.Prewitt@gmail.com>\nDate:   Tue Feb 18 15:01:3"
+        }
+      ],
+      "ab_seconds": 2.04,
+      "ab_rc": 0
+    },
+    {
+      "question": "What should I know before modifying this?",
+      "repo": "flask",
+      "target": "src/flask/app.py:969",
+      "manual_seconds": 0.1,
+      "manual_commands": [
+        {
+          "cmd": [
+            "git",
+            "blame",
+            "-L",
+            "969,969",
+            "src/flask/app.py"
+          ],
+          "rc": 0,
+          "seconds": 0.02,
+          "out_len": 128,
+          "out_head": "6a6496900 (David Lord 2025-09-19 16:58:48 -0700 969)     def dispatch_request(self, ctx: AppContext) -> ft.ResponseRetur"
+        },
+        {
+          "cmd": [
+            "git",
+            "log",
+            "--oneline",
+            "-10",
+            "--",
+            "src/flask/app.py"
+          ],
+          "rc": 0,
+          "seconds": 0.02,
+          "out_len": 349,
+          "out_head": "7203feab Fix IPv6 server name parsing\n514fc6b3 Merge branch 'stable'\n81798b40 fix typos\nfbb6f0bc all teardown callbacks "
+        },
+        {
+          "cmd": [
+            "git",
+            "log",
+            "--oneline",
+            "--all",
+            "--grep=revert",
+            "--",
+            "src/flask/app.py"
+          ],
+          "rc": 0,
+          "seconds": 0.06,
+          "out_len": 0,
+          "out_head": ""
+        }
+      ],
+      "ab_seconds": 1.07,
+      "ab_rc": 0
+    },
+    {
+      "question": "TOTAL: full 5-question investigation",
+      "manual_commands_count": 12,
+      "manual_seconds": 0.34,
+      "ab_commands_count": 5,
+      "ab_seconds": 5.97
+    }
+  ],
+  "grep_burden": [
+    {
+      "repo": "requests",
+      "symbol": "prepare_url",
+      "per_path": [
+        {
+          "path": "src/",
+          "hits": 2
+        },
+        {
+          "path": "tests/",
+          "hits": 3
+        }
+      ],
+      "total_hits": 5
+    },
+    {
+      "repo": "flask",
+      "symbol": "dispatch_request",
+      "per_path": [
+        {
+          "path": "src/",
+          "hits": 15
+        },
+        {
+          "path": "tests/",
+          "hits": 9
+        }
+      ],
+      "total_hits": 24
+    }
+  ],
+  "trust_calibration": [
+    {
+      "repo": "requests",
+      "args": [
+        "--json",
+        "src/requests/models.py:483"
+      ],
+      "expected_confidence": "HIGH",
+      "ground_truth": "introduced by 561e4b68 (types rewrite)",
+      "got_confidence": "HIGH",
+      "extra": {},
+      "rc": 0
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--commit",
+        "fd13816d",
+        "--json"
+      ],
+      "expected_confidence": "MEDIUM+",
+      "ground_truth": "explicit revert of 19cff44e",
+      "got_confidence": [
+        "MEDIUM",
+        "HIGH",
+        "HIGH"
+      ],
+      "extra": {
+        "revert_of": "19cff44ec1b8eeec99459b504a681aa440f6344c",
+        "subject": "Revert \"Fix for response with UTF-8 BOM #4976\""
+      },
+      "rc": 0
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--json",
+        "src/requests/__init__.py:74"
+      ],
+      "expected_confidence": "HIGH",
+      "ground_truth": "origin 2b34880e via -w blame (d8e23678 only re-indented)",
+      "got_confidence": "HIGH",
+      "extra": {},
+      "rc": 0
+    },
+    {
+      "repo": "requests",
+      "args": [
+        "--json",
+        "src/requests/models.py:99999"
+      ],
+      "expected_confidence": "INSUFFICIENT",
+      "ground_truth": "line does not exist -> honest INSUFFICIENT",
+      "got_confidence": "INSUFFICIENT",
+      "extra": {},
+      "rc": 0
+    },
+    {
+      "repo": "flask",
+      "args": [
+        "--json",
+        "src/flask/app.py:969"
+      ],
+      "expected_confidence": "MEDIUM+",
+      "ground_truth": "dispatch_request long-lived, framework-registered",
+      "got_confidence": "HIGH",
+      "extra": {},
+      "rc": 0
+    },
+    {
+      "repo": "rich",
+      "args": [
+        "--json",
+        "rich/console.py:1891"
+      ],
+      "expected_confidence": "MEDIUM+",
+      "ground_truth": "Console.print, huge change history",
+      "got_confidence": "MEDIUM",
+      "extra": {},
+      "rc": 0
+    }
+  ]
+}

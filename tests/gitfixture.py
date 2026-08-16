@@ -856,12 +856,44 @@ def make_caller_nested_fixture() -> GitFixture:
 
 
 def make_caller_deleted_fixture() -> GitFixture:
-    """9. Deleted caller: a commit removes the caller file."""
+    """9. Deleted caller: one commit touches the TARGET (so it is
+    analyzed) and deletes the caller file, so the target's caller
+    analysis at the parent marks the deleted caller DELETED."""
     f = GitFixture()
     a = f.commit("Add auth module", _caller_auth())
     b = f.commit("Add request handler", _caller_server())
-    c = f.rm("src/server.py", "Remove request handler")
+    f._run("rm", "-q", "src/server.py")
+    c = f.commit("Remove request handler", {
+        "src/auth.py": "def authenticate():\n    return True  # touched\n",
+    })
     f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_caller_import_alias_false_positive_fixture() -> GitFixture:
+    """Phase 4 regression (requests prepare_url bug): a bare call whose
+    name is an import alias (cast(...)) inside a SIBLING method of the
+    target's class must NOT be credited as a DIRECT caller of the target
+    method - only calls that actually name the target are callers."""
+    f = GitFixture()
+    f.commit("Add service", {
+        "src/service.py": (
+            "from typing import cast\n"
+            "\n"
+            "class Client:\n"
+            "    def target(self):\n"
+            "        return 1\n"
+            "    def prepare_auth(self):\n"
+            "        cast(int, 1)\n"
+            "        return 1\n"
+            "    def prepare_body(self):\n"
+            "        cast(int, 2)\n"
+            "        return 2\n"
+            "    def run(self):\n"
+            "        self.target()\n"
+            "        return 0\n"
+        ),
+    })
     return f
 
 

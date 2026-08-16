@@ -165,13 +165,13 @@ def render_terminal(result: AnalysisResult, verbose: bool = False) -> str:
     # --- Evidence -------------------------------------------------------
     if result.evidence:
         out.append(_b("Evidence"))
-        for e in result.evidence:
-            mark = "✗" if e["is_counter"] else "✓"
-            out.append(f"  {mark} {sanitize(e['text'])}")
-            if verbose:
-                out.append(f"      weight {e['weight']:+.2f}  [{e['kind']}]")
-                for r in e.get("reasons", []):
-                    out.append(f"      - {sanitize(r)}")
+        # Same noise-control contract as diff/commit: per-commit kinds
+        # (modified_by / fix_related) collapse into counts instead of
+        # printing one near-identical bullet per later commit. Caller
+        # evidence kinds are rendered once in the Callers section below
+        # (when the target resolves to a symbol) - no double listing.
+        _render_evidence_aggregated(out, result.evidence, verbose,
+                                    exclude_caller_kinds=result.symbol is not None)
         out.append("")
 
     # --- Counter-evidence ----------------------------------------------
@@ -201,11 +201,20 @@ def render_terminal(result: AnalysisResult, verbose: bool = False) -> str:
     # --- Historical chain -----------------------------------------------
     if result.history:
         out.append(_b("Historical chain"))
-        for h in result.history:
+        # --history mode shows the full timeline (that is its purpose);
+        # WHY/RISK get the newest slice plus a pointer, so a 200-commit
+        # lineage does not bury the answer under 200 lines of context.
+        chain = result.history
+        capped = mode != "history" and len(chain) > 25
+        for h in (chain[:25] if capped else chain):
             out.append(
                 f"  {sanitize(h['sha'][:8])}  {sanitize(h['date'])}  "
                 f"{sanitize(h['subject'])}"
             )
+        if capped:
+            out.append(f"  ... {len(chain) - 25} more commit(s) in the full "
+                       f"lineage (use --history or --json for the complete "
+                       f"timeline)")
         out.append("")
 
     # --- Risk ------------------------------------------------------------
@@ -328,7 +337,11 @@ def render_diff_terminal(result: DiffResult, verbose: bool = False) -> str:
             ev = a.get("evidence", [])
             if ev:
                 out.append(_b("  Related evidence"))
-                _render_evidence_aggregated(out, ev, verbose)
+                # Caller facts render once in the Callers section below
+                # when the group resolved to a symbol.
+                _render_evidence_aggregated(
+                    out, ev, verbose,
+                    exclude_caller_kinds=a.get("symbol") is not None)
                 out.append("")
             else:
                 out.append(_b("  Related evidence"))
@@ -380,20 +393,29 @@ def render_diff_terminal(result: DiffResult, verbose: bool = False) -> str:
     return "\n".join(out) + "\n"
 
 
-def _render_evidence_aggregated(out: list, ev: list, verbose: bool) -> None:
+def _render_evidence_aggregated(out: list, ev: list, verbose: bool,
+                                exclude_caller_kinds: bool = False) -> None:
     """Render evidence bullets, collapsing per-commit kinds into counts.
 
     `modified_by` and `fix_related` are emitted once per later commit by
     the engine; for a long-lived file that is dozens of near-identical
     bullets. Collapse each kind into a single line with a commit count
     (the JSON output keeps the full per-commit list for machines).
+
+    `exclude_caller_kinds` drops the caller evidence kinds (live_caller /
+    possible_caller / import_reference): when the target resolves to a
+    symbol those facts are rendered once, in the Callers section, so the
+    Evidence section does not list them a second time.
     """
+    caller_kinds = ("live_caller", "possible_caller", "import_reference")
     counts: dict = {}     # kind -> list of texts
     singles: list = []    # kinds shown individually (introduced_by, tests)
     for e in ev:
         kind = e["kind"]
         if kind in ("modified_by", "fix_related", "related_fix"):
             counts.setdefault(kind, []).append(e["text"])
+        elif exclude_caller_kinds and kind in caller_kinds:
+            continue  # rendered once, in the Callers section
         else:
             singles.append(e)
     for e in singles:
@@ -625,7 +647,17 @@ def _render_callers(out: list, callers: list, verbose: bool,
             if c["relationship"] in ("TEXTUAL_MATCH", "UNRESOLVED")]
 
     for c in detailed[:10]:
-        mark = "✓" if c["status"] == "LIVE" else "✗"
+        # LIVE = exists at the analyzed revision. MODIFIED = the caller
+        # still exists there but its file is part of the analyzed change
+        # (diff/commit); rendering it with the "dead" marker would
+        # contradict the risk wording ("confirmed live caller(s)").
+        # DELETED is the only genuinely dead status.
+        if c["status"] == "LIVE":
+            mark = "✓"
+        elif c["status"] == "MODIFIED":
+            mark = "~"
+        else:
+            mark = "✗"
         out.append(f"{indent}{mark} {sanitize(c['symbol'])}  "
                    f"{c['relationship']}  {c['status']}  "
                    f"(confidence {c['confidence']})")

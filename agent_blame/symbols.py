@@ -573,8 +573,28 @@ def _classify_call(node: ast.Call, receiver_chain: List[str], final: str,
     target_kind = symbol.kind
     target_class = symbol.parent
 
+    # A call only references OUR symbol if its callee name IS the target's
+    # name, or is a bare from-import ALIAS that deterministically resolves
+    # to the target (`from auth import authenticate as auth_fn; auth_fn()`).
+    # The discover-loop pre-filter admits any `final in ctx.from_imports`,
+    # so WITHOUT this guard every bare call whose name happens to be an
+    # import (cast(...), parse_url(...), ...) inside the target's class is
+    # credited as a DIRECT_CALL of the target - the requests prepare_url
+    # false-caller bug (Phase 4). Any other differently-named call is a
+    # different symbol and is never a caller of ours.
+    alias_resolved = (
+        not receiver_chain
+        and final != target_name
+        and final in ctx.from_imports
+        and ctx.from_imports[final][1] == target_name
+        and _module_matches(ctx.from_imports[final][0], target_module,
+                            target_stem, stem_ambiguous)
+    )
+    if final != target_name and not alias_resolved:
+        return None, "LOW"
+
     if not receiver_chain:
-        # bare call: authenticate() / check()
+        # bare call: authenticate() / check() / auth_fn() (resolved alias)
         if in_target_file:
             if target_kind == "method":
                 if _inside_class(node, symbol, file_symbols):
