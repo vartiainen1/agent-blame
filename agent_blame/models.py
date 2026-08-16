@@ -1,0 +1,195 @@
+"""Data models for agent-blame.
+
+Every meaningful conclusion carries the evidence that supports it. The
+models below are the structured result contract: stable, documented, and
+consumable by other tools via the JSON output (see output.py).
+"""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass, field
+from typing import List, Optional
+
+from . import __version__
+
+
+# ---------------------------------------------------------------------------
+# Targets
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class Target:
+    """A file:line (or file:start-end) target inside the repository."""
+
+    file: str                       # repo-relative path, forward slashes
+    start_line: int                 # 1-based inclusive
+    end_line: int                   # 1-based inclusive
+
+    def to_dict(self) -> dict:
+        return {
+            "file": self.file,
+            "start_line": self.start_line,
+            "end_line": self.end_line,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Git primitives (facts about the repository)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class BlameLine:
+    """One line of `git blame --line-porcelain` output for a target range."""
+
+    line_no: int
+    commit: str                     # full sha of the introducing commit
+    summary: str                    # subject of that commit (raw, unsanitized)
+    author: str                     # author name (raw)
+    author_time: str                # ISO-8601 author date
+
+
+@dataclass(frozen=True)
+class CommitInfo:
+    """Metadata + file-level diff summary for a single commit."""
+
+    sha: str
+    subject: str
+    body: str
+    author: str
+    author_email: str
+    author_date: str                # ISO-8601
+    files_changed: List[str] = field(default_factory=list)  # paths touched
+    is_merge: bool = False
+
+    def to_dict(self) -> dict:
+        return {
+            "sha": self.sha,
+            "subject": self.subject,
+            "body": self.body,
+            "author": self.author,
+            "author_email": self.author_email,
+            "author_date": self.author_date,
+            "files_changed": self.files_changed,
+            "is_merge": self.is_merge,
+        }
+
+
+@dataclass(frozen=True)
+class CommitDiff:
+    """The diff of one commit restricted to one file (for analysis)."""
+
+    sha: str
+    file: str
+    diff: str                       # raw unified diff text (unsanitized)
+    added_lines: int = 0
+    removed_lines: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Evidence
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class EvidenceItem:
+    """A single piece of historical evidence relevant to the target.
+
+    `kind` is the machine-readable evidence class (e.g. "introduction",
+    "same_commit_test", "later_modification", "revert", ...). `weight` is
+    the deterministic contribution to the evidence score. `reasons` are
+    human-readable explanations of why this evidence ranked the way it did.
+    """
+
+    kind: str
+    commit: Optional[str] = None
+    text: str = ""
+    weight: float = 0.0
+    reasons: List[str] = field(default_factory=list)
+    is_counter: bool = False        # True -> this evidence weakens the story
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class Inference:
+    """A conclusion derived from one or more evidence items (never a fact)."""
+
+    text: str
+    evidence_kinds: List[str] = field(default_factory=list)
+    confidence: str = "LOW"         # how strongly the supporting evidence
+                                    # supports this specific inference
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+# ---------------------------------------------------------------------------
+# Aggregated results
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class Confidence:
+    """How strongly the available repository evidence supports the analysis.
+
+    Levels: HIGH / MEDIUM / LOW / CONTRADICTORY / INSUFFICIENT.
+    """
+
+    level: str
+    score: float                    # 0.0 - 1.0, deterministic, explainable
+    reasons: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "level": self.level,
+            "score": round(self.score, 4),
+            "reasons": self.reasons,
+        }
+
+
+@dataclass(frozen=True)
+class Risk:
+    """Historical change/removal risk. NOT a safety guarantee.
+
+    Levels: LOW / MEDIUM / HIGH / UNKNOWN. Signals are evidence-based;
+    the developer makes the final decision.
+    """
+
+    level: str
+    reasons: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {"level": self.level, "reasons": self.reasons}
+
+
+@dataclass
+class AnalysisResult:
+    """The full structured result of an agent-blame investigation."""
+
+    target: Target
+    mode: str                       # "why" | "history" | "risk" | "diff"
+    repository: dict = field(default_factory=dict)
+    confidence: Confidence = field(default_factory=lambda: Confidence("INSUFFICIENT", 0.0))
+    facts: List[dict] = field(default_factory=list)
+    inferences: List[dict] = field(default_factory=list)
+    evidence: List[dict] = field(default_factory=list)
+    counter_evidence: List[dict] = field(default_factory=list)
+    history: List[dict] = field(default_factory=list)
+    risk: Risk = field(default_factory=lambda: Risk("UNKNOWN", []))
+    warnings: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "tool": "agent-blame",
+            "version": __version__,
+            "target": self.target.to_dict(),
+            "mode": self.mode,
+            "repository": self.repository,
+            "confidence": self.confidence.to_dict(),
+            "facts": self.facts,
+            "inferences": self.inferences,
+            "evidence": self.evidence,
+            "counter_evidence": self.counter_evidence,
+            "history": self.history,
+            "risk": self.risk.to_dict(),
+            "warnings": self.warnings,
+        }

@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-blame"
+version = "0.1.0"
+description = "Deterministic Git archaeology: why code exists, how it evolved, and historical removal risk."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["git", "archaeology", "blame", "history", "developer-tools"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Version Control :: Git",
+]
+
+[project.scripts]
+agent-blame = "agent_blame.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["agent_blame*"]
