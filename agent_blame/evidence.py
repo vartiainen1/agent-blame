@@ -78,6 +78,14 @@ def collect_evidence(repo: Repository, target: Target,
             ci = commit_map.get(sha)
             if ci is not None:
                 return ci.subject, ci.body
+            # Backfill: movement-heavy commits blame origin shas that are
+            # not in the file's --follow list (Phase 3 perf - 120 misses
+            # -> one git call each). Cache so repeat lookups hit the map.
+            ci = commit_info(repo, sha)
+            if ci is not None:
+                commit_map[sha] = ci
+                return ci.subject, ci.body
+            return "", ""
         ci = commit_info(repo, sha)
         return (ci.subject, ci.body) if ci else ("", "")
 
@@ -273,6 +281,7 @@ def detect_counterevidence(repo: Repository, target: Target,
                            commit_map: Optional[Dict[str, object]] = None,
                            diff_memo: Optional[Dict[Tuple[str, str], object]] = None,
                            stats: Optional[Dict[str, Tuple[int, int]]] = None,
+                           all_commits: Optional[List[str]] = None,
                            ) -> List[EvidenceItem]:
     """Standalone counter-evidence pass (reverts + replacement).
 
@@ -280,6 +289,17 @@ def detect_counterevidence(repo: Repository, target: Target,
     again so the counter-evidence list is complete even if a caller only
     uses this function. Replacement is reported honestly as POSSIBLE
     supersession, never as fact.
+
+    Chronology split (Phase 3): message-based reverts describe how THIS
+    code evolved, so they use `later` (commits after the newest
+    introducing commit). Replacement is a FILE-LEVEL signal - "this
+    file's implementation was superseded" - so it scans the full file
+    history (a wholesale deletion that predates the current lines is
+    exactly the replacement story, e.g. a file removed and re-created).
+    To avoid one weak signal being emitted per commit (which stacked
+    -0.20 x N on refactor-heavy real files and drove confidence to
+    CONTRADICTORY), replacement is AGGREGATED into a single item naming
+    the strongest instance.
     """
     out: List[EvidenceItem] = []
 
@@ -302,9 +322,14 @@ def detect_counterevidence(repo: Repository, target: Target,
                 is_counter=True,
             ))
 
-    # Replacement: a later commit that largely rewrote/removed the file is
-    # a hint the implementation was superseded (weak signal).
-    for sha in later:
+    # Replacement: a commit that largely rewrote/removed the file is a
+    # hint the implementation was superseded (weak signal). Scans the
+    # FULL file history (file-level supersession), aggregated into ONE
+    # item - the strongest instance - so N refactor commits never stack
+    # into a -0.20 x N penalty.
+    scope = all_commits if all_commits is not None else later
+    best = None  # (sha, removed) - the strongest instance
+    for sha in scope:
         if stats is not None:
             added, removed = stats.get(sha) or (0, 0)
         else:
@@ -314,16 +339,20 @@ def detect_counterevidence(repo: Repository, target: Target,
             added, removed = diff.added_lines, diff.removed_lines
         if (removed >= _REPLACEMENT_MIN_REMOVED and
                 added < removed * 0.3):
-            out.append(EvidenceItem(
-                kind="replacement",
-                commit=sha,
-                text=f"commit {sha[:8]} largely rewrote/removed {target.file} "
-                     f"({removed} lines removed)",
-                weight=weight_for("replacement"),
-                reasons=["large deletion in one later commit suggests "
-                         "supersession (weak signal)"],
-                is_counter=True,
-            ))
+            if best is None or removed > best[1]:
+                best = (sha, removed)
+    if best is not None:
+        sha, removed = best
+        out.append(EvidenceItem(
+            kind="replacement",
+            commit=sha,
+            text=f"commit {sha[:8]} largely rewrote/removed {target.file} "
+                 f"({removed} lines removed)",
+            weight=weight_for("replacement"),
+            reasons=["large deletion in the file's history suggests "
+                     "supersession (weak signal, aggregated)"],
+            is_counter=True,
+        ))
     return dedupe_evidence(out)
 
 

@@ -556,6 +556,21 @@ coordinate space) that the corrective commit actually changed lines
 inside that symbol. A "fix" to an unrelated symbol in the same file is
 NOT reported as a regression for the target.
 
+### Chronology guard (Phase 3)
+
+`later` history is strictly newer than the newest introducing commit.
+Pre-introducer reverts and fixes are NOT cited against the analyzed code
+(Phase 3 found requests' 2013–2019 reverts being cited against 2026 code,
+zeroing confidence to CONTRADICTORY everywhere). Two exceptions keep
+legitimate findings:
+
+- a pre-introducer fix is surfaced when an **introducing** commit
+  explicitly reverts it (then the fix IS the subject of the lineage);
+- a `Revert ...` subject without a trailer is only a CORRECTIVE_CHANGE
+  when it shows verified symbol overlap **or** strictly corrective shape
+  (`removed > added`) — flask's 2018 "revert copyright year" 1/1 edit is
+  not correction evidence.
+
 ### Integration
 
 - **WHY / HISTORY / RISK**: a `Historical regression evidence` section.
@@ -593,6 +608,10 @@ risk the same way the existing revert/fix signals do.
   overlap exists.
 - **Symbol overlap is Python-only** (Phase 2C scope); for other
   languages only file-level and test-evidence signals apply.
+- **Quiet is not "no regressions"**: on revert-free repos the findings
+  list is empty; that means no evidence was found, not that the code is
+  regression-free. Phase 3 verified real repos (requests, flask, rich)
+  produce zero false regressions.
 
 ---
 
@@ -847,28 +866,37 @@ tests/
 
 ---
 
+## Phase 3: product validation & accuracy review (complete)
+
+Phase 3 was a feature-frozen evaluation against four real repositories
+(requests, flask, rich, Freebuff). The permanent record is
+`PHASE3_EVALUATION.md`; the machine-readable dataset is `eval_dataset.json`.
+
+It found and fixed three genuine bugs (a confidence-destroying chronology
+bug where old reverts were cited against new code, replacement counter-
+evidence stacking, and a revert/corrective double-count), two performance
+problems (49 s → 12.5 s on a rename-heavy commit; 1,693 → 568 git calls),
+a commit-mode bug (pure renames reported no movement), and two regression
+noise sources (pre-introducer fixes, trivial revert-subject edits).
+
+**Result: 270 tests green; zero false HIGH-confidence claims; zero
+CONTRADICTORY confidence; ground-truth verified against git; classified
+USEFUL MVP** (developers can benefit today, with honest limits).
+
+---
+
 ## Roadmap (not yet built)
 
-Phase 2 remaining: commit mode (`--commit`), stronger revert/rename/code-
-movement tracking, caller and symbol relationships, regression detection,
-better counter-evidence, caching. Phase 3 candidates: merge-aware analysis,
-richer JSON, optional LLM explanation layer that explains the structured
-findings without inventing evidence.
+Completed: `--diff` (2A), `--commit` (2B), caller/symbol relationships
+(2C, conservative Python AST), code-movement/rename tracking (2D), and
+regression detection (2E) — all on one deterministic engine (many target
+selectors: `file:line`, `--history`, `--risk`, `--diff`, `--commit`).
 
-The MVP deliberately stops at: repository discovery, safe Git, `file:line`
-targets, blame, introducing commits, commit diffs/metadata, relevant history,
-evidence model + ranking, confidence, basic counter-evidence, basic risk,
-JSON output, secure terminal output, and tests. Phase 2A added `--diff` and
-Phase 2B added `--commit` on top of the same single engine (one pipeline,
-many target selectors: `file:line`, `--history`, `--risk`, `--diff`,
-`--commit`).
-
-Phase 2 remaining: code-movement/rename tracking, regression detection,
-better counter-evidence, caching. Phase 3 candidates: merge-aware analysis,
-richer JSON, optional LLM explanation layer that explains the structured
-findings without inventing evidence. Caller/symbol relationships are built
-(Phase 2C): conservative Python AST-based caller discovery feeding the
-same evidence/confidence/risk engine.
+Phase 3 candidates (not started): merge-aware analysis, richer JSON,
+optional LLM explanation layer that explains the structured findings
+without inventing evidence. Advanced caller/movement-assisted attribution
+and blame-ancestry views were explicitly deferred per the Phase 2
+stop-conditions.
 
 ---
 

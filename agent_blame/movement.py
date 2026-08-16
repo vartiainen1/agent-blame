@@ -35,7 +35,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 from .git import GitError
-from .history import blame_target
+from .history import blame_file_map
 from .models import Target
 from .symbols import match_moved_symbols
 
@@ -46,18 +46,18 @@ def _origin_for(repo, memo, mv: dict, revision: str) -> Optional[str]:
     `revision` is the BEFORE side of the boundary (the commit's parent for
     --commit, HEAD for --diff), so the origin is the commit that actually
     introduced the moved code - never the mover.
+
+    Perf (Phase 3): the whole source file is blamed ONCE per (file,
+    revision) via the memoized blame_file_map; a move commit with many
+    moved symbols previously ran one `git blame` subprocess PER symbol
+    (272 calls, ~14s, on requests' src/ move).
     """
     start = mv.get("_source_start")
-    end = mv.get("_source_end")
     src = mv.get("source_path")
-    if not (start and end and src):
+    if not (start and src):
         return None
-    try:
-        lines = blame_target(repo, Target(file=src, start_line=start,
-                                          end_line=end), revision=revision)
-    except GitError:
-        return None
-    return lines[0].commit if lines else None
+    bl = blame_file_map(repo, memo, src, revision).get(start)
+    return bl.commit if bl else None
 
 
 def boundary_movements(repo, memo, before: Dict[str, str],

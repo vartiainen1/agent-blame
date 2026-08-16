@@ -20,7 +20,8 @@ from agent_blame.models import Target
 from agent_blame.output import render_json
 from agent_blame.repository import discover_repository
 
-from tests.gitfixture import (make_regression_commit_after_revert_fixture,
+from tests.gitfixture import (make_regression_chronology_fixture,
+                              make_regression_commit_after_revert_fixture,
                               make_regression_commit_revert_fixture,
                               make_regression_corrective_fixture,
                               make_regression_deterministic_fixture,
@@ -33,6 +34,7 @@ from tests.gitfixture import (make_regression_commit_after_revert_fixture,
                               make_regression_revert_sequence_fixture,
                               make_regression_same_symbol_refactor_fixture,
                               make_regression_shallow_fixture,
+                              make_regression_trivial_revert_fixture,
                               make_regression_unicode_fixture)
 
 
@@ -445,6 +447,59 @@ class TestMaliciousMessage(_Base):
         from agent_blame.output import render_terminal
         out = render_terminal(res)
         self.assertNotIn("\x1b[", out)
+
+
+class TestChronologyOldRevert(_Base):
+    """Phase 3 bug (requests/models.py): an OLD revert that predates the
+    line's introducing commit must NOT be cited against the current code.
+
+    Before the fix, `later` held every file commit except introducers, so
+    a 2019 revert was reported as EXPLICIT_REVERT of a 2026 introducer and
+    several such items zeroed confidence to CONTRADICTORY on healthy
+    long-lived code. The fix: `later` is strictly newer than the newest
+    introducing commit.
+    """
+
+    def make_fx(self):
+        return make_regression_chronology_fixture()
+
+    def test_pre_introducer_revert_not_a_regression(self):
+        res = self.analyze("app/retry.py", 3)
+        self.assertEqual(res.regressions, [],
+                         "pre-introducer revert must not become a regression")
+        kinds = {e["kind"] for e in res.evidence}
+        self.assertNotIn("explicit_revert", kinds)
+        self.assertNotEqual(res.confidence.level, "CONTRADICTORY",
+                            "old reverts must not zero confidence")
+
+    def test_introducer_is_the_rewrite_not_the_old_revert(self):
+        res = self.analyze("app/retry.py", 3)
+        intro = next(e for e in res.evidence if e["kind"] == "introduced_by")
+        self.assertEqual(intro["commit"], self.fx.shas["C"])
+
+
+class TestTrivialRevertSubject(_Base):
+    """Phase 3 noise gate: a "revert copyright year" 1/1 docstring edit
+    (no symbol overlap, no net removal) must NOT produce CORRECTIVE_CHANGE
+    - the flask/__init__.py reproduction (2018 copyright revert cited
+    against dispatch_request/version line)."""
+
+    def make_fx(self):
+        return make_regression_trivial_revert_fixture()
+
+    def test_trivial_revert_not_flagged(self):
+        # Target the retry symbol (line 3 = sleep) - B's revert subject
+        # touched only the docstring line, not the symbol.
+        res = self.analyze("app/retry.py", 4)
+        self.assertEqual(res.regressions, [],
+                         "trivial 1/1 revert-subject edit must not be "
+                         "correction evidence")
+
+    def test_symbol_resolved_check(self):
+        # The target resolves to the retry symbol; verify the finding is
+        # absent regardless of which symbol-anchored line we choose.
+        res = self.analyze("app/retry.py", 5)
+        self.assertEqual(res.regressions, [])
 
 
 class TestShallowHistory(_Base):

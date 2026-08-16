@@ -195,6 +195,31 @@ class TestRenameCommit(_Base):
         self.assertIn("Add auth module", subjects)
         self.assertIn("Fix auth bug", subjects)
 
+    def test_pure_rename_carries_movement(self):
+        """Phase 3 regression: a pure R100 rename commit (no hunks) must
+        still report the movement block. The pure-rename branch `continue`d
+        before the movement attachment, so --commit on a git-confirmed
+        rename showed NO movement at all - the one case where git itself
+        proves the move. The mover is the rename commit; the origin is the
+        introducing commit A (never the mover)."""
+        res = self.analyze(self.fx.shas["C"])
+        c = self.change_for(res, "src/security/session.py")
+        self.assertEqual(c.status, "R")
+        self.assertIsNotNone(c.movement,
+                             "pure rename must carry a movement block")
+        self.assertEqual(c.movement["type"], "RENAME")
+        self.assertEqual(c.movement["source_path"], "src/auth.py")
+        self.assertEqual(c.movement["moved_by"], self.fx.shas["C"])
+        self.assertEqual(c.movement["origin"], self.fx.shas["A"],
+                         "origin is the introducing commit, never the mover")
+        # The group analysis must blame A, never the rename commit C.
+        blame_facts = [f for f in c.groups[0].analysis["facts"]
+                       if f["kind"] == "blame"]
+        self.assertTrue(blame_facts)
+        for f in blame_facts:
+            self.assertNotEqual(f["commit"], self.fx.shas["C"],
+                                "the rename commit must not appear as origin")
+
 
 class TestRootCommit(_Base):
     """14. Root commit: no parent, reported without a baseline."""

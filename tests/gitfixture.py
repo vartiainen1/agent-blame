@@ -1222,6 +1222,45 @@ def _retry_with(sleep_value: str) -> str:
             "    return fn()\n")
 
 
+def make_regression_chronology_fixture() -> GitFixture:
+    """Phase 3 chronology bug (requests/models.py reproduction): an OLD
+    revert that PREDATES the current line's introducing commit must not be
+    cited against the current code.
+
+    A (2019): introduces sleep 13
+    B (2019): modifies to sleep 7
+    R (2019): reverts B (structured trailer) - back to sleep 13
+    C (2026): rewrites the file; line 3 (sleep 7) is INTRODUCED by C
+
+    Before the fix, `later` contained every file commit except the
+    introducer, so R (2019) was cited as an EXPLICIT_REVERT of 2026 code
+    and six such items zeroed confidence to CONTRADICTORY on healthy
+    long-lived code. The guard: `later` is strictly NEWER than the newest
+    introducing commit.
+    """
+    f = GitFixture()
+    a = f.commit("Add retry with sleep 13", {
+        "app/retry.py": _retry_with(13),
+    }, when="2019-01-01T10:00:00+00:00")
+    b = f.commit("Fix retry timing for 429s", {
+        "app/retry.py": _retry_with(7),
+    }, when="2019-02-01T10:00:00+00:00")
+    r = f.commit(
+        'Revert "Fix retry timing for 429s"\n\nThis reverts commit ' + b + ".",
+        {"app/retry.py": _retry_with(13)},
+        when="2019-03-01T10:00:00+00:00")
+    c = f.commit("Rewrite retry module", {
+        "app/retry.py": (
+            "import time\n"
+            "def retry(fn, n=7):\n"
+            "    time.sleep(7)\n"
+            "    return fn()\n"
+        ),
+    }, when="2026-05-01T10:00:00+00:00")
+    f.shas = {"A": a, "B": b, "R": r, "C": c}
+    return f
+
+
 def make_regression_revert_sequence_fixture() -> GitFixture:
     """1. A introduces, B modifies, C reverts B (structured trailer), D
     modifies again. Standalone WHY on D's lines must find C's revert of B
@@ -1284,6 +1323,42 @@ def make_regression_no_false_positive_fixture() -> GitFixture:
         {"README.md": "# project\n"},
     )
     f.shas = {"A": a, "B": b, "C": c}
+    return f
+
+
+def make_regression_trivial_revert_fixture() -> GitFixture:
+    """Phase 3 noise gate (flask reproduction): a "Revert copyright year"
+    style commit that changes ONE line (1 removed / 1 added - not a
+    corrective shape) must NOT produce CORRECTIVE_CHANGE.
+
+    A: adds retry.py with a docstring copyright line + the retry symbol
+    B: "Revert copyright year" - edits ONLY the docstring line (1/1)
+
+    Analyzing the retry symbol: B's revert subject is real but its change
+    is trivial - no symbol overlap, no net removal. Before the Phase 3
+    gate, file-level overlap alone fired CORRECTIVE_CHANGE (flask's 2018
+    copyright revert was cited against dispatch_request).
+    """
+    f = GitFixture()
+    a = f.commit("Add retry module", {
+        "app/retry.py": (
+            "# :copyright: (c) 2020 by A.\n"
+            "import time\n"
+            "def retry(fn, n=7):\n"
+            "    time.sleep(13)\n"
+            "    return fn()\n"
+        ),
+    })
+    b = f.commit("Revert copyright year", {
+        "app/retry.py": (
+            "# :copyright: (c) 2010 by A.\n"
+            "import time\n"
+            "def retry(fn, n=7):\n"
+            "    time.sleep(13)\n"
+            "    return fn()\n"
+        ),
+    })
+    f.shas = {"A": a, "B": b}
     return f
 
 

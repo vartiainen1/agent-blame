@@ -366,6 +366,14 @@ def analyze_commit(repo: Repository, rev: str,
                             changes=[], added_lines=0, deleted_lines=0,
                             analysis=aresult.to_dict(),
                         ))
+                        # Phase 3 finding: this branch `continue`d before
+                        # the movement attachment below, so a pure rename
+                        # (R100, no hunks) reported NO movement block -
+                        # the one case where git itself confirms the move.
+                        mv = rename_movement(old_path or path, path,
+                                             _analysis_origin(change))
+                        mv["moved_by"] = ci.sha
+                        change.movement = mv
                         result.changes.append(change)
                         continue
             # Binary file, or an unanalyzable rename.
@@ -377,6 +385,12 @@ def analyze_commit(repo: Repository, rev: str,
                     repository=repo.to_dict(),
                     confidence=_INSUFFICIENT()).to_dict(),
             ))
+            if status == "R":
+                # A git-confirmed rename is metadata, not content: report
+                # it even when the file could not be analyzed (binary).
+                mv = rename_movement(old_path or path, path, None)
+                mv["moved_by"] = ci.sha
+                change.movement = mv
             warnings.append(f"{path}: binary or no textual changes")
             result.changes.append(change)
             continue

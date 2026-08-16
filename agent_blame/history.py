@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional
 
-from .git import GitError, git_lines, git_output, try_git_output
+from .git import GitError, git_bytes, git_lines, git_output, try_git_output
 from .models import BlameLine, CommitDiff, CommitInfo, Target
 from .repository import Repository
 
@@ -281,11 +281,161 @@ def commit_info(repo: Repository, sha: str) -> Optional[CommitInfo]:
     )
 
 
+_SHA_RE = re.compile(r"^[0-9a-f]{40,64}$")
+# git name-status vocabulary: one status letter, optional similarity score
+# ("M", "A", "R100", "C75", "T", ...). Used to tell a status token from
+# the next record's sha (40+ hex) in the batch stream - a path is never
+# inspected here because paths are consumed inside the status branch.
+_STATUS_RE = re.compile(r"^([ACDMRTUXB])(\d{0,3})$")
+
+
+def _parse_batched_name_status(raw: bytes) -> Dict[str, List[str]]:
+    """Parse `git log --no-walk --name-status --format=%H%x00 -z --stdin`.
+
+    Verified byte layout per commit: `<40-hex sha>\0\n` followed by
+    `<status>\0<path>\0[<oldpath>\0 for R/C]` records; the NEXT sha
+    follows the last path directly (no separator). Splitting on NUL
+    yields [sha, "", "\nM", path, sha, "", "\nM", path, ...] - the
+    single empty token is the %x00 after %H; the -z record separator
+    merges with git's header newline onto the status token. Paths never
+    start with '\n', so a '\n'-prefixed token is always a status and a
+    fresh 40-hex token is reached only after a commit's records are
+    consumed. Returns {sha: [paths]}.
+
+    SHA-integrity note (Phase 2C regression lesson): shas are never
+    inferred - each record's sha is the literal token at the record
+    start, and paths are consumed only inside the status branch, so a
+    40-hex-looking path cannot be mistaken for a record header.
+    """
+    text = raw.decode("utf-8", errors="replace")
+    tokens = text.split("\0")
+    out: Dict[str, List[str]] = {}
+    i, n = 0, len(tokens)
+    while i < n:
+        sha = tokens[i]
+        if not _SHA_RE.match(sha):
+            i += 1
+            continue  # defensive: skip a malformed leading token
+        i += 1
+        # The format's %x00 (and the -z record separator) emit empty
+        # token(s) between the sha and the first status; records between
+        # commits are adjacent (path -> next sha directly). Only the FIRST
+        # status of a commit carries git's header newline ("\nM"); later
+        # ones are bare ("M").
+        while i < n and tokens[i] == "":
+            i += 1
+        files: List[str] = []
+        while i < n:
+            tok = tokens[i]
+            if _SHA_RE.match(tok):
+                break  # next commit's sha (this commit's records consumed)
+            t2 = tok[1:] if tok.startswith("\n") else tok
+            if _STATUS_RE.match(t2):
+                status = t2[0]
+                if status in ("R", "C") and i + 2 < n:
+                    files.append(tokens[i + 2])
+                    i += 3
+                else:
+                    if i + 1 < n:
+                        files.append(tokens[i + 1])
+                    i += 2
+            else:
+                i += 1  # defensive: unexpected token (e.g. empty commit)
+        out[sha] = files
+    return out
+
+
+def commit_files_batch(repo: Repository, memo, shas: List[str]) -> None:
+    """Fetch file lists for many commits in ONE git call (stdin, no-walk).
+
+    Phase 3 perf: a rename-heavy commit blames ~800 DISTINCT origin
+    commits (one per moved symbol), and per-sha `git show --name-status`
+    meant ~800 subprocesses (~17s on Windows). This fetches exactly the
+    requested (uncached) shas via a single `git log --stdin --no-walk`
+    call and fills the shared per-run cache; later callers hit the cache.
+    Any sha git rejects is simply left uncached - the per-sha path still
+    works for it, so a malformed sha can never corrupt the batch.
+    """
+    cache = getattr(memo, "_commit_files", None)
+    if cache is None:
+        cache = memo._commit_files = {}
+    missing = [s for s in shas if s not in cache]
+    if not missing:
+        return
+    # `git log --name-status` shows NO diff for merge commits (only
+    # `git show`/`-m`/`--cc` do), so the batch cannot reproduce their
+    # combined file list. Keep them on the per-sha `git show` path
+    # (exact existing behavior); batch only non-merges. Shas missing
+    # from commit_map (not in the file's --follow history) are batched
+    # too - blame can credit boundary commits the follow walk skips.
+    batch = [s for s in missing
+             if (ci := memo.commit_map.get(s)) is None
+             or len(ci.parents) <= 1]
+    if not batch:
+        return
+    payload = ("\n".join(batch) + "\n").encode("utf-8")
+    try:
+        raw = git_bytes(
+            ["log", "--no-walk", "--name-status", "--format=%H%x00", "-z",
+             "--stdin"],
+            input_bytes=payload, cwd=repo.root, timeout=120)
+    except GitError:
+        return
+    parsed = _parse_batched_name_status(raw)
+    for s in missing:
+        if s in parsed:
+            cache[s] = parsed[s]
+
+
+def commit_files_cached(repo: Repository, memo, sha: str) -> List[str]:
+    """commit_files(sha) memoized per run (shared across modules).
+
+    Movement/rename-heavy commits (e.g. requests' src/ move) blamed many
+    introducing commits per changed region; without sharing, build_graph
+    re-ran `git show --name-status` for the SAME sha hundreds of times
+    (Phase 3 measurement: 922 calls, ~19s, on one commit). One call per
+    unique sha per run; use commit_files_batch for whole groups.
+    """
+    cache = getattr(memo, "_commit_files", None)
+    if cache is None:
+        cache = memo._commit_files = {}
+    if sha not in cache:
+        cache[sha] = commit_files(repo, sha)
+    return cache[sha]
+
+
+def blame_file_map(repo: Repository, memo, file: str,
+                   revision: str = "HEAD") -> Dict[int, BlameLine]:
+    """Blame an ENTIRE file once at `revision`, memoized per (file, rev).
+
+    Returns {final_line_no: BlameLine}. Movement analysis needs the origin
+    commit for many moved symbols in the same source file; blaming the
+    whole file once instead of once per symbol turns N git calls into 1
+    (Phase 3 measurement: 272 range blames, ~14s, for one move commit).
+    Returns {} when the file does not exist at that revision.
+    """
+    cache = getattr(memo, "_blame_files", None)
+    if cache is None:
+        cache = memo._blame_files = {}
+    key = (file, revision)
+    if key not in cache:
+        try:
+            lines = git_lines(
+                ["blame", "--line-porcelain", "-w", revision, "--", file],
+                cwd=repo.root,
+            )
+            cache[key] = {b.line_no: b for b in _parse_porcelain_blame(lines)}
+        except GitError:
+            cache[key] = {}
+    return cache[key]
+
+
 def commit_files(repo: Repository, sha: str) -> List[str]:
     """List files changed by a commit (name-status, -z for safe parsing).
 
     Called only for the FEW commits that need same-commit-file facts (the
     introducing commits), never for every commit in a file's history.
+    Use `commit_files_cached` from hot loops (multi-target runs).
     """
     raw = try_git_output(
         ["show", "--name-status", "--format=", "-z", sha], cwd=repo.root)

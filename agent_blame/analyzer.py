@@ -230,7 +230,7 @@ def analyze(repo: Repository, target: Target, mode: str = "why",
 
     # --- Historical graph (targeted expansion) --------------------------
     graph, introducing, later = build_graph(repo, target, blame_lines=blame_lines,
-                                            commits=commits)
+                                            commits=commits, memo=memo)
 
     # --- Evidence collection + ranking ----------------------------------
     # commit_map / diff_memo come from the shared memo when provided, so
@@ -241,7 +241,8 @@ def analyze(repo: Repository, target: Target, mode: str = "why",
                                 stats=stats)
     counter = detect_counterevidence(repo, target, introducing, later,
                                      commit_map=memo.commit_map, diff_memo=memo.diff_memo,
-                                     stats=stats)
+                                     stats=stats,
+                                     all_commits=[c.sha for c in commits])
     all_evidence = dedupe_evidence([*evidence, *counter])
 
     # --- Caller relationships (Phase 2C, revision-aware) ---------------
@@ -321,7 +322,8 @@ def analyze(repo: Repository, target: Target, mode: str = "why",
     from .regression import (detect_regressions,  # lazy: avoids import cycle
                              regressions_to_evidence)
     regressions = detect_regressions(
-        repo, memo, target, introducing, later, stats=stats,
+        repo, memo, target, introducing, later,
+        all_commits=[c.sha for c in commits], stats=stats,
         symbol_name=target_sym.name if target_sym is not None else None,
         has_symbol=target_sym is not None)
     result.regressions = [r.to_dict() for r in regressions]
@@ -331,8 +333,14 @@ def analyze(repo: Repository, target: Target, mode: str = "why",
         # what confidence's contradiction rule needs); the message-based
         # "revert" item is keyed by the REVERTING commit - so dedupe on
         # the fix_commit (the commit that did the reverting).
+        # CORRECTIVE_CHANGE findings derive from the SAME underlying fact
+        # as the message-based "revert" item (a commit whose subject says
+        # "Revert") - the structured finding replaces the weak item, never
+        # double-counts it (Phase 3 finding: rich's 19349e38 appeared as
+        # both revert -0.25 and corrective_change -0.10).
         revert_commits = {r["fix_commit"] for r in result.regressions
-                          if r["type"] == "EXPLICIT_REVERT"
+                          if r["type"] in ("EXPLICIT_REVERT",
+                                            "CORRECTIVE_CHANGE")
                           and r.get("fix_commit")}
         if revert_commits:
             all_evidence = [

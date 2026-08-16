@@ -60,7 +60,6 @@ from typing import Dict, List, Optional, Set
 
 from .evidence import _REVERT_REF, _classify_commit_message
 from .graph import _is_test_path
-from .history import commit_files
 from .models import EvidenceItem, RegressionEvidence, Target
 from .ranking import weight_for
 from .repository import Repository
@@ -93,6 +92,26 @@ def _resolve_sha(candidate: str, full_shas: Set[str]) -> Optional[str]:
     return None
 
 
+def _reverted_by_introducer(sha: str, introducing: List[str], memo) -> bool:
+    """Is `sha` the explicit revert target of an introducing commit?
+
+    The exception to the chronology guard: a fix commit that predates the
+    introducer is normally suppressed, but when an INTRODUCING commit
+    carries the structured "This reverts commit <sha>" trailer for it, the
+    fix is part of the analyzed lineage (a revert commit restored the
+    pre-fix behavior; blame credits the revert as introducer). Deterministic:
+    trailer shas may be abbreviated - resolved by exact/unique-prefix match.
+    """
+    for intro in introducing:
+        ci = memo.commit_map.get(intro)
+        if ci is None:
+            continue
+        m = _REVERT_REF.search(f"{ci.subject}\n{ci.body}")
+        if m and _resolve_sha(m.group(1), {sha}) is not None:
+            return True
+    return False
+
+
 def _introducer_reference(text: str, introducing: List[str]) -> Optional[str]:
     """An introducing commit sha cited in a commit message, if any.
 
@@ -111,13 +130,14 @@ def _introducer_reference(text: str, introducing: List[str]) -> Optional[str]:
 
 
 def _commit_files_cached(repo: Repository, memo, sha: str) -> List[str]:
-    """commit_files(sha) with a per-run memo (avoids repeat git calls)."""
-    cache = getattr(memo, "_regression_files", None)
-    if cache is None:
-        cache = memo._regression_files = {}
-    if sha not in cache:
-        cache[sha] = commit_files(repo, sha)
-    return cache[sha]
+    """commit_files(sha) with a per-run memo (avoids repeat git calls).
+
+    Delegates to history.commit_files_cached so build_graph and regression
+    share ONE cache per run (Phase 3 perf: 922 duplicate calls measured
+    on a rename-heavy commit).
+    """
+    from .history import commit_files_cached
+    return commit_files_cached(repo, memo, sha)
 
 
 def _test_evidence(files: List[str], target_file: str) -> Optional[str]:
@@ -195,7 +215,9 @@ def _classify_later_commit(repo: Repository, memo, sha: str, text: str,
                            target_file: str,
                            stats: Optional[Dict[str, tuple]],
                            symbol_name: Optional[str] = None,
-                           has_symbol: bool = False) -> Optional[RegressionEvidence]:
+                           has_symbol: bool = False,
+                           predates_introducer: bool = False
+                           ) -> Optional[RegressionEvidence]:
     """Classify one later commit into a regression finding (or None)."""
     # --- EXPLICIT_REVERT: structured trailer ---------------------------
     m = _REVERT_REF.search(text)
@@ -243,15 +265,55 @@ def _classify_later_commit(repo: Repository, memo, sha: str, text: str,
         # correction signal, but only if it touches the target file (all
         # `later` commits do by construction).
         if "revert" in kinds:
+            # Phase 3 noise gate: real-world revert subjects are often
+            # trivial ("revert copyright year", formatting). The
+            # revert-subject commit must have actually removed behavior:
+            # either verified symbol overlap (when the target resolved to
+            # a symbol) or a strictly corrective shape (removed > added,
+            # when it did not - flask's 2018 1/1 copyright revert cited
+            # against __init__.py:24 was pure file-level noise).
+            sym = _symbol_overlap(repo, memo, sha, target_file, symbol_name)
+            corrective = False
+            if stats is not None:
+                added, removed = stats.get(sha) or (0, 0)
+                corrective = (removed >= _CORRECTIVE_MIN_REMOVED
+                              and removed > added)
+            if has_symbol and not sym:
+                return None
+            if not sym and not corrective:
+                return None
+            rel = "SYMBOL_OVERLAP" if sym else "FILE_OVERLAP"
+            signals = ["revert_subject_without_trailer"]
+            if sym:
+                signals.append("symbol_overlap")
+            if corrective:
+                signals.append("corrective_shape")
             return RegressionEvidence(
                 type="CORRECTIVE_CHANGE", confidence="LOW",
-                relationship="FILE_OVERLAP",
+                relationship=rel,
                 fix_commit=sha, target_path=target_file,
-                signals=["revert_subject_without_trailer"],
+                signals=signals,
                 explanation=(f"commit {sha[:8]} has a revert subject but no "
                              f"structured revert reference; correction "
                              f"relationship cannot be confirmed"),
             )
+        return None
+
+    # Chronology guard (Phase 3): a fix commit that PREDATES the newest
+    # introducing commit cannot have "corrected behavior introduced by" the
+    # analyzed lineage - the analyzed code did not exist when it was made.
+    # Citing it would be exactly the requests/models.py noise (old fixes
+    # cited against new code). Suppress the finding entirely rather than
+    # emit a sequence claim the chronology cannot support. (CORRECTIVE_CHANGE
+    # above is exempt: it claims no sequence, only a file-history fact.)
+    #
+    # ONE legitimate exception: an INTRODUCING commit explicitly reverts
+    # this fix commit. Then the fix IS the subject of the analyzed lineage
+    # - e.g. blame credits the revert commit as the introducer (restored
+    # content), and the fix it reversed is exactly the historical context
+    # the analysis must surface (the --diff fix+revert fixture).
+    if predates_introducer and not _reverted_by_introducer(
+            sha, introducing, memo):
         return None
 
     # Fix language present - gather overlap signals (fix words alone never
@@ -293,7 +355,8 @@ def _classify_later_commit(repo: Repository, memo, sha: str, text: str,
         return RegressionEvidence(
             type="LIKELY_REGRESSION_FIX", confidence="MEDIUM",
             relationship="MESSAGE_REFERENCE",
-            original_commit=ref, fix_commit=sha,
+            original_commit=ref if not predates_introducer else None,
+            fix_commit=sha,
             target_path=target_file,
             signals=signals,
             explanation=(f"evidence indicates commit {sha[:8]} corrected "
@@ -303,7 +366,8 @@ def _classify_later_commit(repo: Repository, memo, sha: str, text: str,
         return RegressionEvidence(
             type="LIKELY_REGRESSION_FIX", confidence="MEDIUM",
             relationship="SYMBOL_OVERLAP",
-            original_commit=introducing[0] if introducing else None,
+            original_commit=(introducing[0] if introducing
+                             and not predates_introducer else None),
             fix_commit=sha, target_path=target_file,
             signals=signals,
             explanation=(f"evidence indicates commit {sha[:8]} corrected "
@@ -320,7 +384,8 @@ def _classify_later_commit(repo: Repository, memo, sha: str, text: str,
         return RegressionEvidence(
             type="POSSIBLE_REGRESSION_FIX", confidence="LOW",
             relationship="SYMBOL_OVERLAP",
-            original_commit=introducing[0] if introducing else None,
+            original_commit=(introducing[0] if introducing
+                             and not predates_introducer else None),
             fix_commit=sha, target_path=target_file,
             signals=signals,
             explanation=(f"possible regression/fix sequence involving "
@@ -331,7 +396,8 @@ def _classify_later_commit(repo: Repository, memo, sha: str, text: str,
         return RegressionEvidence(
             type="POSSIBLE_REGRESSION_FIX", confidence="LOW",
             relationship="TEST_EVIDENCE" if test_path else "FILE_OVERLAP",
-            original_commit=introducing[0] if introducing else None,
+            original_commit=(introducing[0] if introducing
+                             and not predates_introducer else None),
             fix_commit=sha, target_path=target_file,
             signals=signals,
             explanation=(f"possible regression/fix sequence involving "
@@ -347,15 +413,24 @@ def detect_regressions(repo: Repository, memo,
                        target: Target,
                        introducing: List[str],
                        later: List[str],
+                       all_commits: Optional[List[str]] = None,
                        stats: Optional[Dict[str, tuple]] = None,
                        symbol_name: Optional[str] = None,
                        has_symbol: bool = False,
                        ) -> List[RegressionEvidence]:
-    """Detect regression patterns among the later commits touching a file.
+    """Detect regression patterns among commits touching a file.
 
     `introducing`: blame-introduced commits for the target lines.
-    `later`: commits touching the file after, excluding introducers
-             (newest first, from the shared pipeline).
+    `later`: commits touching the file after the NEWEST introducing
+             commit (chronology-guarded, from the shared pipeline).
+    `all_commits`: the file's FULL commit history (newest first).
+             Regression sequences (introduce -> fix -> revert -> rework)
+             span the whole file lineage, and the blame-introducer may be
+             the LAST event in the chain (a revert or reconfiguration), so
+             candidates are scanned from the full history - but relevance
+             is chronology-aware: EXPLICIT_REVERT resolution and fix
+             attribution only link to `introducing`/`later` (the analyzed
+             lineage), never to pre-introducer history.
     `stats`: {sha: (added, removed)} per-commit numstat for the file.
     `symbol_name`: qualified name of the target's resolved symbol, when
         the target line sits inside a Python symbol (Phase 2C). Used for
@@ -371,8 +446,12 @@ def detect_regressions(repo: Repository, memo,
     findings: List[RegressionEvidence] = []
     fix_candidates = 0
     touching: Set[str] = {*introducing, *later}
+    scope = all_commits if all_commits is not None else later
+    newest_introducer = introducing[0] if introducing else None
 
-    for sha in later:
+    for sha in scope:
+        if sha in introducing:
+            continue  # introducers are never their own regression
         ci = memo.commit_map.get(sha)
         if ci is None:
             continue
@@ -399,7 +478,10 @@ def detect_regressions(repo: Repository, memo,
             finding = _classify_later_commit(
                 repo, memo, sha, text, kinds, introducing, touching,
                 target.file, stats, symbol_name=symbol_name,
-                has_symbol=has_symbol)
+                has_symbol=has_symbol,
+                predates_introducer=(
+                    newest_introducer is not None and sha != newest_introducer
+                    and sha not in later))
             if finding is not None:
                 findings.append(finding)
 

@@ -75,7 +75,12 @@ class TestEvolution(_Base):
         return make_evolution_fixture()
 
     def test_later_modification_detected(self):
-        res = self.analyze("app/retry.py", 3)
+        # Line 2 (the `def retry` line) was introduced by A and is unchanged
+        # since; B is a genuine LATER modification of the file, so it must
+        # surface as modified_by. (Line 3 is B's own line at HEAD - blaming
+        # it credits B as the introducer and leaves nothing later to
+        # report, which is correct after the chronology fix.)
+        res = self.analyze("app/retry.py", 2)
         kinds = {e["kind"] for e in res.evidence}
         self.assertIn("introduced_by", kinds)
         self.assertIn("modified_by", kinds)
@@ -84,7 +89,7 @@ class TestEvolution(_Base):
     def test_related_test_found(self):
         # The regression test was added by a LATER commit (not the
         # introducing one), so it surfaces as related_test evidence.
-        res = self.analyze("app/retry.py", 3)
+        res = self.analyze("app/retry.py", 2)
         tests = [e for e in res.evidence if e["kind"] == "related_test"]
         self.assertEqual(len(tests), 1)
         self.assertIn("test_retry.py", tests[0]["text"])

@@ -22,7 +22,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set
 
-from .history import blame_target, commit_files, file_commits
+from .history import (blame_target, commit_files, commit_files_batch,
+                      commit_files_cached, file_commits)
 from .models import CommitInfo, Target
 from .repository import Repository
 
@@ -88,17 +89,25 @@ def _is_test_path(path: str) -> bool:
 def build_graph(repo: Repository, target: Target,
                 blame_lines=None,
                 commits: Optional[List[CommitInfo]] = None,
-                revision: str = "HEAD") -> HistoricalGraph:
+                revision: str = "HEAD",
+                memo=None) -> HistoricalGraph:
     """Build the targeted historical graph for a target.
 
     `commits` may be pre-fetched by the caller (analyzer fetches once and
     reuses) to avoid re-running `git log` for every stage. `revision`
     anchors the fallback fetches (commit mode passes the target commit's
-    parent so the graph describes the state BEFORE that commit).
+    parent so the graph describes the state BEFORE that commit). `memo`
+    shares commit-file facts across targets (Phase 3 perf: a rename-heavy
+    commit re-ran `git show --name-status` for the same shas hundreds of
+    times; now one call per unique sha per run).
 
     Returns (graph, introducing_commits, later_commits):
       introducing_commits: commits blamed for introducing the target lines
-      later_commits:       commits touching the file, excluding introducers
+      later_commits:       commits that touched the file AFTER the newest
+                           introducing commit (chronology guard: commits
+                           older than the introduction are earlier history
+                           of OTHER content, never later modifications of
+                           this code)
     """
     g = HistoricalGraph()
     file_key = f"file:{target.file}"
@@ -119,19 +128,50 @@ def build_graph(repo: Repository, target: Target,
     # 2. All commits touching the file (follow renames), newest first.
     if commits is None:
         commits = file_commits(repo, target.file, revision=revision)
-    for ci in commits:
+
+    # Chronology guard (Phase 3 finding): `later` must mean commits that
+    # came AFTER this code existed, not merely "other commits that touched
+    # the file". `commits` is newest-first, so the newest introducing
+    # commit is the cut: anything older than it modified the file BEFORE
+    # this code existed and is NOT a later modification of it. Previously
+    # the full list leaked in, which produced false EXPLICIT_REVERT
+    # findings (a 2020 revert "fixing" 2026-introduced lines) and
+    # inflated modified_by counts, driving confidence to CONTRADICTORY
+    # on real repositories.
+    cut = None
+    for i, ci in enumerate(commits):
+        if ci.sha in introducing:
+            cut = i  # newest introducing commit (list is newest-first)
+            break
+    if cut is None:
+        # Introducer not in the (bounded) window: every listed commit is
+        # newer than it, so all of them are genuine later commits.
+        later_all = True
+    else:
+        later_all = False
+
+    for i, ci in enumerate(commits):
         ckey = f"commit:{ci.sha}"
         g.add_node(ckey, "commit", sha=ci.sha, subject=ci.subject,
                    author_date=ci.author_date)
         g.add_edge(file_key, ckey, REL_TOUCHES)
         if ci.sha in introducing:
             continue  # introducers already linked via blame
+        if not later_all and i > cut:
+            continue  # older than the newest introduction: touched the
+            # file, but never modified THIS code - not a "later" commit
         g.add_edge(ckey, file_key, REL_MODIFIED_BY)
 
     # 3. Same-commit tests: files in the introducing commits' diffs that
     #    look like tests. Edge file -> test.
+    #    Perf (Phase 3): a rename-heavy commit can blame HUNDREDS of
+    #    distinct origin shas here; fetch them all in one `git log
+    #    --stdin --no-walk` call instead of one subprocess per sha.
+    if memo is not None:
+        commit_files_batch(repo, memo, introducing)
     for sha in introducing:
-        files = commit_files(repo, sha)
+        files = (commit_files_cached(repo, memo, sha) if memo is not None
+                 else commit_files(repo, sha))
         for f in files:
             if _is_test_path(f):
                 tkey = f"test:{f}"
@@ -139,5 +179,8 @@ def build_graph(repo: Repository, target: Target,
                 g.add_edge(file_key, tkey, REL_TESTS)
                 g.add_edge(f"commit:{sha}", tkey, REL_TESTS)
 
-    later = [ci.sha for ci in commits if ci.sha not in introducing]
+    if later_all:
+        later = [ci.sha for ci in commits if ci.sha not in introducing]
+    else:
+        later = [ci.sha for i, ci in enumerate(commits) if i < cut]
     return g, sorted(introducing), later

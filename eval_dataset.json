@@ -1,0 +1,809 @@
+{
+  "repos": {
+    "requests": [
+      {
+        "repo": "requests",
+        "target": "src/requests/models.py:483",
+        "mode": "why",
+        "rc": 0,
+        "seconds": 0.79,
+        "summary": {
+          "confidence": "HIGH",
+          "confidence_score": 0.85,
+          "risk": "HIGH",
+          "risk_reasons": 5,
+          "n_facts": 1,
+          "n_evidence": 24,
+          "n_counter": 1,
+          "n_callers": 10,
+          "n_regressions": 0,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": "PreparedRequest.prepare_url",
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by",
+            "possible_caller",
+            "same_commit_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "src/requests/models.py:PreparedRequest.prepare",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/requests/models.py:PreparedRequest.prepare_auth",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/requests/models.py:PreparedRequest.prepare_body",
+              "DIRECT_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "requests",
+        "target": "src/requests/models.py:483",
+        "mode": "history",
+        "rc": 0,
+        "seconds": 0.8,
+        "summary": {
+          "confidence": "HIGH",
+          "confidence_score": 0.85,
+          "risk": "HIGH",
+          "risk_reasons": 5,
+          "n_facts": 1,
+          "n_evidence": 24,
+          "n_counter": 1,
+          "n_callers": 10,
+          "n_regressions": 0,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": "PreparedRequest.prepare_url",
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by",
+            "possible_caller",
+            "same_commit_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "src/requests/models.py:PreparedRequest.prepare",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/requests/models.py:PreparedRequest.prepare_auth",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/requests/models.py:PreparedRequest.prepare_body",
+              "DIRECT_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "requests",
+        "target": "src/requests/models.py:483",
+        "mode": "risk",
+        "rc": 0,
+        "seconds": 0.84,
+        "summary": {
+          "confidence": "HIGH",
+          "confidence_score": 0.85,
+          "risk": "HIGH",
+          "risk_reasons": 5,
+          "n_facts": 1,
+          "n_evidence": 24,
+          "n_counter": 1,
+          "n_callers": 10,
+          "n_regressions": 0,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": "PreparedRequest.prepare_url",
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by",
+            "possible_caller",
+            "same_commit_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "src/requests/models.py:PreparedRequest.prepare",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/requests/models.py:PreparedRequest.prepare_auth",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/requests/models.py:PreparedRequest.prepare_body",
+              "DIRECT_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "requests",
+        "target": "src/requests/sessions.py:324",
+        "mode": "why",
+        "rc": 0,
+        "seconds": 0.58,
+        "summary": {
+          "confidence": "HIGH",
+          "confidence_score": 0.85,
+          "risk": "HIGH",
+          "risk_reasons": 5,
+          "n_facts": 1,
+          "n_evidence": 13,
+          "n_counter": 1,
+          "n_callers": 4,
+          "n_regressions": 0,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": "SessionRedirectMixin.rebuild_auth",
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by",
+            "possible_caller",
+            "same_commit_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "src/requests/sessions.py:SessionRedirectMixin.resolve_redirects",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/requests/sessions.py:Session.__init__",
+              "POSSIBLE_CALL",
+              "LIVE"
+            ],
+            [
+              "src/requests/sessions.py:Session.prepare_request",
+              "POSSIBLE_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "requests",
+        "target": "src/requests/adapters.py:128",
+        "mode": "why",
+        "rc": 0,
+        "seconds": 1.53,
+        "summary": {
+          "confidence": "MEDIUM",
+          "confidence_score": 0.6,
+          "risk": "HIGH",
+          "risk_reasons": 7,
+          "n_facts": 1,
+          "n_evidence": 72,
+          "n_counter": 2,
+          "n_callers": 43,
+          "n_regressions": 0,
+          "movement": "RENAME",
+          "movement_origin": "2a6f290bc09324406708a4d404a88a45d848ddf9",
+          "movement_moved_by": "d63e94f552ebf77ccf45d97e5863ac46500fa2c7",
+          "symbol": "BaseAdapter.send",
+          "evidence_kinds": [
+            "code_movement",
+            "fix_related",
+            "introduced_by",
+            "modified_by",
+            "possible_caller",
+            "related_test",
+            "same_commit_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines",
+            "revert"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "src/requests/adapters.py:HTTPAdapter.__init__",
+              "POSSIBLE_CALL",
+              "LIVE"
+            ],
+            [
+              "src/requests/adapters.py:HTTPAdapter.get_connection",
+              "POSSIBLE_CALL",
+              "LIVE"
+            ],
+            [
+              "src/requests/adapters.py:HTTPAdapter.get_connection_with_tls_context",
+              "POSSIBLE_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "requests",
+        "target": "src/requests/__init__.py:74",
+        "mode": "why",
+        "rc": 0,
+        "seconds": 1.22,
+        "summary": {
+          "confidence": "HIGH",
+          "confidence_score": 0.85,
+          "risk": "HIGH",
+          "risk_reasons": 5,
+          "n_facts": 1,
+          "n_evidence": 46,
+          "n_counter": 1,
+          "n_callers": 1,
+          "n_regressions": 0,
+          "movement": "RENAME",
+          "movement_origin": "2b34880e2fa3fe6006bf64517e036f5ed74478d6",
+          "movement_moved_by": "d63e94f552ebf77ccf45d97e5863ac46500fa2c7",
+          "symbol": "check_compatibility",
+          "evidence_kinds": [
+            "code_movement",
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by"
+          ],
+          "counter_kinds": [
+            "deleted_lines"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "src/requests/__init__.py:<module>",
+              "DIRECT_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "requests",
+        "target": "--commit fd13816d",
+        "mode": "commit",
+        "rc": 0,
+        "seconds": 1.99,
+        "summary": {
+          "error": true
+        }
+      },
+      {
+        "repo": "requests",
+        "target": "--commit d63e94f5",
+        "mode": "commit",
+        "rc": 0,
+        "seconds": 12.54,
+        "summary": {
+          "error": true
+        }
+      }
+    ],
+    "flask": [
+      {
+        "repo": "flask",
+        "target": "src/flask/app.py:969",
+        "mode": "why",
+        "rc": 0,
+        "seconds": 1.17,
+        "summary": {
+          "confidence": "HIGH",
+          "confidence_score": 0.65,
+          "risk": "HIGH",
+          "risk_reasons": 7,
+          "n_facts": 1,
+          "n_evidence": 27,
+          "n_counter": 2,
+          "n_callers": 15,
+          "n_regressions": 0,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": "Flask.dispatch_request",
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by",
+            "possible_caller",
+            "related_test",
+            "same_commit_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines",
+            "replacement"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "src/flask/app.py:Flask",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/flask/app.py:Flask.async_to_sync",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/flask/app.py:Flask.create_url_adapter",
+              "DIRECT_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "flask",
+        "target": "src/flask/app.py:969",
+        "mode": "history",
+        "rc": 0,
+        "seconds": 1.12,
+        "summary": {
+          "confidence": "HIGH",
+          "confidence_score": 0.65,
+          "risk": "HIGH",
+          "risk_reasons": 7,
+          "n_facts": 1,
+          "n_evidence": 27,
+          "n_counter": 2,
+          "n_callers": 15,
+          "n_regressions": 0,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": "Flask.dispatch_request",
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by",
+            "possible_caller",
+            "related_test",
+            "same_commit_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines",
+            "replacement"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "src/flask/app.py:Flask",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/flask/app.py:Flask.async_to_sync",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/flask/app.py:Flask.create_url_adapter",
+              "DIRECT_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "flask",
+        "target": "src/flask/app.py:969",
+        "mode": "risk",
+        "rc": 0,
+        "seconds": 1.05,
+        "summary": {
+          "confidence": "HIGH",
+          "confidence_score": 0.65,
+          "risk": "HIGH",
+          "risk_reasons": 7,
+          "n_facts": 1,
+          "n_evidence": 27,
+          "n_counter": 2,
+          "n_callers": 15,
+          "n_regressions": 0,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": "Flask.dispatch_request",
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by",
+            "possible_caller",
+            "related_test",
+            "same_commit_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines",
+            "replacement"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "src/flask/app.py:Flask",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/flask/app.py:Flask.async_to_sync",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/flask/app.py:Flask.create_url_adapter",
+              "DIRECT_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "flask",
+        "target": "src/flask/helpers.py:580",
+        "mode": "why",
+        "rc": 0,
+        "seconds": 0.93,
+        "summary": {
+          "confidence": "HIGH",
+          "confidence_score": 0.65,
+          "risk": "HIGH",
+          "risk_reasons": 7,
+          "n_facts": 1,
+          "n_evidence": 88,
+          "n_counter": 2,
+          "n_callers": 8,
+          "n_regressions": 0,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": "send_from_directory",
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by",
+            "possible_caller",
+            "related_test",
+            "same_commit_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines",
+            "replacement"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "src/flask/helpers.py:abort",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/flask/helpers.py:redirect",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "src/flask/helpers.py:stream_with_context",
+              "DIRECT_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "flask",
+        "target": "src/flask/__init__.py:24",
+        "mode": "why",
+        "rc": 0,
+        "seconds": 0.48,
+        "summary": {
+          "confidence": "MEDIUM",
+          "confidence_score": 0.55,
+          "risk": "HIGH",
+          "risk_reasons": 5,
+          "n_facts": 1,
+          "n_evidence": 52,
+          "n_counter": 3,
+          "n_callers": 0,
+          "n_regressions": 1,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": null,
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "modified_by"
+          ],
+          "counter_kinds": [
+            "corrective_change",
+            "deleted_lines",
+            "replacement"
+          ],
+          "regression_types": [
+            "CORRECTIVE_CHANGE"
+          ],
+          "caller_first": []
+        }
+      },
+      {
+        "repo": "flask",
+        "target": "--commit HEAD~50",
+        "mode": "commit",
+        "rc": 0,
+        "seconds": 6.17,
+        "summary": {
+          "error": true
+        }
+      }
+    ],
+    "rich": [
+      {
+        "repo": "rich",
+        "target": "rich/console.py:1891",
+        "mode": "why",
+        "rc": 0,
+        "seconds": 1.2,
+        "summary": {
+          "confidence": "MEDIUM",
+          "confidence_score": 0.4,
+          "risk": "HIGH",
+          "risk_reasons": 8,
+          "n_facts": 1,
+          "n_evidence": 277,
+          "n_counter": 3,
+          "n_callers": 24,
+          "n_regressions": 0,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": "Console.print_exception",
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by",
+            "possible_caller",
+            "related_test",
+            "same_commit_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines",
+            "replacement",
+            "revert"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "rich/console.py:Console._caller_frame_info",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "rich/console.py:Console._collect_renderables",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "rich/console.py:Console._write_buffer",
+              "DIRECT_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "rich",
+        "target": "rich/console.py:1891",
+        "mode": "risk",
+        "rc": 0,
+        "seconds": 1.2,
+        "summary": {
+          "confidence": "MEDIUM",
+          "confidence_score": 0.4,
+          "risk": "HIGH",
+          "risk_reasons": 8,
+          "n_facts": 1,
+          "n_evidence": 277,
+          "n_counter": 3,
+          "n_callers": 24,
+          "n_regressions": 0,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": "Console.print_exception",
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by",
+            "possible_caller",
+            "related_test",
+            "same_commit_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines",
+            "replacement",
+            "revert"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "rich/console.py:Console._caller_frame_info",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "rich/console.py:Console._collect_renderables",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "rich/console.py:Console._write_buffer",
+              "DIRECT_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "rich",
+        "target": "rich/table.py:502",
+        "mode": "why",
+        "rc": 0,
+        "seconds": 1.0,
+        "summary": {
+          "confidence": "MEDIUM",
+          "confidence_score": 0.4,
+          "risk": "HIGH",
+          "risk_reasons": 7,
+          "n_facts": 1,
+          "n_evidence": 53,
+          "n_counter": 3,
+          "n_callers": 4,
+          "n_regressions": 0,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": "Table.__rich_console__.render_annotation",
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by",
+            "related_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines",
+            "replacement",
+            "revert"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "rich/table.py:<module>",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "rich/table.py:Column",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "rich/table.py:Column.copy",
+              "DIRECT_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "rich",
+        "target": "rich/text.py:231",
+        "mode": "why",
+        "rc": 0,
+        "seconds": 1.46,
+        "summary": {
+          "confidence": "MEDIUM",
+          "confidence_score": 0.4,
+          "risk": "HIGH",
+          "risk_reasons": 7,
+          "n_facts": 1,
+          "n_evidence": 62,
+          "n_counter": 3,
+          "n_callers": 10,
+          "n_regressions": 0,
+          "movement": null,
+          "movement_origin": null,
+          "movement_moved_by": null,
+          "symbol": "Text.markup",
+          "evidence_kinds": [
+            "fix_related",
+            "introduced_by",
+            "live_caller",
+            "modified_by",
+            "possible_caller",
+            "related_test"
+          ],
+          "counter_kinds": [
+            "deleted_lines",
+            "replacement",
+            "revert"
+          ],
+          "regression_types": [],
+          "caller_first": [
+            [
+              "rich/text.py:Text.detect_indentation",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "rich/text.py:Text.markup",
+              "DIRECT_CALL",
+              "LIVE"
+            ],
+            [
+              "rich/text.py:Text.render",
+              "DIRECT_CALL",
+              "LIVE"
+            ]
+          ]
+        }
+      },
+      {
+        "repo": "rich",
+        "target": "--commit HEAD~100",
+        "mode": "commit",
+        "rc": 0,
+        "seconds": 0.53,
+        "summary": {
+          "error": true
+        }
+      }
+    ]
+  },
+  "generated": "2026-08-16T20:33:57Z"
+}
