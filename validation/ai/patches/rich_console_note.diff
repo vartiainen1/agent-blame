@@ -1,0 +1,12 @@
+diff --git a/rich/console.py b/rich/console.py
+index 0bdce769..7bb79d11 100644
+--- a/rich/console.py
++++ b/rich/console.py
+@@ -1892,6 +1892,7 @@ class Console:
+             suppress (Iterable[Union[str, ModuleType]]): Optional sequence of modules or paths to exclude from traceback.
+             max_frames (int): Maximum number of frames to show in a traceback, 0 for no maximum. Defaults to 100.
+         """
++        # NOTE: verify kwargs are forwarded
+         from .traceback import Traceback
+ 
+         traceback = Traceback(
