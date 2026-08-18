@@ -57,6 +57,30 @@ GUIDED_TREATMENT_ENV = (
     "tooling (git, grep, find, shell utilities) as you normally would."
 )
 
+# Phase 6C Condition C: a SHORT NEUTRAL capability description is provided.
+# No exact command, no "which feature applies to your task", no claim that
+# agent-blame is better than git. The agent must decide whether to use it.
+CAPABILITY_ENV = (
+    "A tool called `agent-blame` is available on your PATH. It is a Git "
+    "archaeology tool that combines introducing commits, later changes, "
+    "code movement, callers, risk, and regression/revert evidence into a "
+    "single historical analysis.\n\n"
+    "You may use it or not - your choice. You may also use normal "
+    "repository tooling (git, grep, find, shell utilities) as you normally "
+    "would. Run `agent-blame --help` if you want its usage details."
+)
+
+# Post-investigation questions (phase 6C section 7). Asked AFTER the agent
+# has finished investigating, for the B/C conditions where agent-blame
+# exists. Not asked of condition A (git only, agent-blame never mentioned).
+POST_QUESTIONS = [
+    "What information did you obtain that was difficult, expensive, or "
+    "cumbersome to obtain using your other tools?",
+    "Would you use agent-blame for a similar investigation again? Why or "
+    "why not?",
+    "If agent-blame were removed, what would you replace it with?",
+]
+
 # --- personas ---------------------------------------------------------------
 
 PERSONAS = {

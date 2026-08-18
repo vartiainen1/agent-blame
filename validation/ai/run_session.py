@@ -21,8 +21,10 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from personas import (  # noqa: E402
     BASELINE_ENV,
+    CAPABILITY_ENV,
     GUIDED_TREATMENT_ENV,
     PERSONAS,
+    POST_QUESTIONS,
     REPO_PATHS,
     SESSION_MATRIX,
     SYSTEM_SHELL,
@@ -194,7 +196,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--task", required=True, choices=list(TASKS.keys()))
     ap.add_argument("--persona", required=True, choices=list(PERSONAS.keys()))
-    ap.add_argument("--type", required=True, choices=["baseline", "treatment", "guided"])
+    ap.add_argument("--type", required=True, choices=["baseline", "treatment", "guided", "capability"])
     ap.add_argument("--session-id", default=None)
     ap.add_argument("--max-commands", type=int, default=40)
     ap.add_argument("--max-minutes", type=int, default=10)
@@ -215,14 +217,19 @@ def main():
     task = TASKS[args.task]
     persona = PERSONAS[args.persona]
     repo = REPO_PATHS[task["repo"]]
-    treatment = args.type in ("treatment", "guided")
+    treatment = args.type in ("treatment", "guided", "capability")
     env = (
-        GUIDED_TREATMENT_ENV
+        CAPABILITY_ENV
+        if args.type == "capability"
+        else GUIDED_TREATMENT_ENV
         if args.type == "guided"
         else TREATMENT_ENV
         if treatment
         else BASELINE_ENV
     )
+    # Post-investigation questions apply to conditions where agent-blame
+    # exists (B: treatment, C: capability) but NOT to git-only baseline.
+    ask_post = args.type in ("treatment", "capability")
 
     sys_prompt = SYSTEM_SHELL.format(
         NAME=persona["name"], TRAITS=persona["traits"], ENV=env
@@ -346,6 +353,24 @@ def main():
         if patch is not None:
             ok = restore_repo(repo)
             rec("system", f"[T3 restore] tree clean: {ok}")
+
+    # Phase 6C section 7: post-investigation questions for the conditions
+    # where agent-blame exists (B: treatment, C: capability). Not asked of
+    # git-only baseline. Non-leading; the agent answers from its own
+    # investigation.
+    post_answers = None
+    if ask_post and not error:
+        try:
+            post_msgs = messages + [{"role": "user", "content": (
+                "A few follow-up questions about your investigation. Answer "
+                "each briefly and honestly:\n"
+                + "\n".join(f"{i+1}. {q}" for i, q in enumerate(POST_QUESTIONS))
+            )}]
+            post_answers = call_ollama(persona["model"], post_msgs)
+            rec("post_questions", POST_QUESTIONS)
+            rec("post_answers", post_answers)
+        except Exception as exc:  # noqa: BLE001
+            rec("post_error", f"post-investigation questions failed: {exc}")
 
     wall = time.time() - start
     meta = {
