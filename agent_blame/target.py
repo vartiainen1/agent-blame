@@ -34,8 +34,9 @@ def parse_target(spec: str) -> Target:
     # line spec. This keeps Windows drive letters (C:\\...) working.
     if ":" not in spec:
         raise TargetError(
-            f"target {spec!r} has no line number; expected <file>:<line> "
-            f"e.g. src/auth/session.py:142"
+            f"target {spec!r} needs a line number: add :LINE to ask why that "
+            f"line exists, e.g. {spec!r}:1 (format: <file>:<line>, "
+            f"e.g. src/auth/session.py:142)"
         )
     path, _, line_part = spec.rpartition(":")
     path = path.strip()

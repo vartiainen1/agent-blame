@@ -32,6 +32,19 @@ from .repository import discover_repository, resolve_repo_path
 from .target import TargetError, parse_target
 
 
+_QUICK_START = """\
+Quick start (run from inside a git repository):
+
+  agent-blame src/auth/session.py:142     why does this line exist?
+  agent-blame --diff                      what history explains my current changes?
+  agent-blame --commit d037a21            why does the code this commit changed exist?
+
+agent-blame aggregates evidence git keeps scattered: introducing commits,
+later modifications, movement, callers, risk, and regression/revert history.
+It is not a prettier `git blame` - it answers WHY, not just WHO.
+"""
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="agent-blame",
@@ -41,18 +54,25 @@ def _build_parser() -> argparse.ArgumentParser:
             "or removing it. No LLM, no network - the repository is the "
             "source of truth."
         ),
+        epilog=_QUICK_START,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("target", nargs="?", default=None,
-                   help="<file>:<line> or <file>:<start>-<end>")
+                   help="WHY: <file>:<line> or <file>:<start>-<end> - "
+                        "why does this code exist?")
     p.add_argument("--history", action="store_true",
-                   help="show the ranked historical timeline for the target")
+                   help="HOW: ranked historical timeline - how did this code "
+                        "evolve?")
     p.add_argument("--risk", action="store_true",
-                   help="historical change/removal risk analysis")
+                   help="RISK: historical change/removal risk analysis - what "
+                        "should I know before changing/removing it?")
     p.add_argument("--diff", action="store_true",
-                   help="DIFF mode: analyze the current working-tree changes")
+                   help="DIFF: historical context for your current "
+                        "working-tree changes")
     p.add_argument("--commit", metavar="REV", default=None,
-                   help="COMMIT mode: analyze a specific commit (sha, "
-                        "abbrev, HEAD, HEAD~1, ...)")
+                   help="COMMIT: historical context for one commit - why does "
+                        "the code it changed exist? (sha, abbrev, HEAD, "
+                        "HEAD~1, ...)")
     p.add_argument("--staged", action="store_true",
                    help="with --diff: analyze staged changes (git diff --cached)")
     p.add_argument("--json", action="store_true",

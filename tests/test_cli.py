@@ -401,6 +401,63 @@ class TestCliRegression(unittest.TestCase):
             fx.cleanup()
 
 
+class TestCliDiscoverability(unittest.TestCase):
+    """Phase 6B: the first-run surface must let an unfamiliar user build a
+    valid invocation from --help alone. Deterministic text assertions on the
+    help and error paths (not exit codes only)."""
+
+    def setUp(self):
+        self.fx = make_introduction_fixture()
+        self.cwd = self.fx.root
+
+    def tearDown(self):
+        self.fx.cleanup()
+
+    def test_help_has_quick_start_examples(self):
+        proc = _run_cli(["--help"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = proc.stdout
+        # Quick start section with the three primary modes.
+        self.assertIn("Quick start", out)
+        self.assertIn("agent-blame src/auth/session.py:142", out)
+        self.assertIn("why does this line exist?", out)
+        self.assertIn("agent-blame --diff", out)
+        self.assertIn("what history explains my current changes?", out)
+        self.assertIn("agent-blame --commit", out)
+        self.assertIn("why does the code this commit changed exist?", out)
+
+    def test_help_differentiates_from_git_blame(self):
+        proc = _run_cli(["--help"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("not a prettier `git blame`", proc.stdout)
+        self.assertIn("WHY, not just WHO", proc.stdout)
+
+    def test_help_target_is_question_first(self):
+        proc = _run_cli(["--help"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = " ".join(proc.stdout.split())  # argparse wraps long lines
+        self.assertIn("WHY: <file>:<line>", out)
+        self.assertIn("how did this code evolve?", out)
+        self.assertIn("what should I know before changing/removing it?", out)
+        self.assertIn("your current working-tree changes", out)
+
+    def test_no_target_prints_help_with_quick_start(self):
+        proc = _run_cli([], self.cwd)
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("usage", proc.stdout.lower())
+        self.assertIn("Quick start", proc.stdout)
+
+    def test_bare_file_error_teaches_line_syntax(self):
+        # Phase 6A class-C failure: agents ran bare `agent-blame file.py` and
+        # stopped. The error must show the fix with the user's own file.
+        proc = _run_cli(["app/retry.py"], self.cwd)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn("needs a line number", proc.stderr)
+        self.assertIn("app/retry.py", proc.stderr)
+        self.assertIn(":LINE", proc.stderr)
+        self.assertIn("src/auth/session.py:142", proc.stderr)
+
 class TestCliSecurity(unittest.TestCase):
     """Malicious commit message must not leak control chars via the CLI."""
 
