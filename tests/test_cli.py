@@ -447,16 +447,196 @@ class TestCliDiscoverability(unittest.TestCase):
         self.assertIn("usage", proc.stdout.lower())
         self.assertIn("Quick start", proc.stdout)
 
-    def test_bare_file_error_teaches_line_syntax(self):
-        # Phase 6A class-C failure: agents ran bare `agent-blame file.py` and
-        # stopped. The error must show the fix with the user's own file.
+    def test_bare_file_offers_blameable_lines(self):
+        # Phase 6C 15: the bare-file case (Phase 6A class-C failure) is now
+        # an AFFORDANCE, not an error - the CLI resolves it to the file's
+        # blame-able lines so the next step (`agent-blame file.py:LINE`) is
+        # one keystroke away.
         proc = _run_cli(["app/retry.py"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("Traceback", proc.stderr)
+        out = proc.stdout
+        self.assertIn("needs a line number", out)
+        self.assertIn("app/retry.py", out)
+        self.assertIn("Symbols in app/retry.py", out)
+        self.assertIn("function retry", out)
+        self.assertIn("agent-blame app/retry.py:1", out)
+
+class TestCliTargetResolution(unittest.TestCase):
+    """Phase 6C 15: the target-resolution entry points (bare file,
+    file:function, bare sha) via the real CLI - output values, not just
+    exit codes."""
+
+    def setUp(self):
+        self.fx = make_evolution_fixture()
+        self.cwd = self.fx.root
+
+    def tearDown(self):
+        self.fx.cleanup()
+
+    def test_bare_file_python_symbol_table(self):
+        proc = _run_cli(["app/retry.py"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = proc.stdout
+        self.assertIn("needs a line number", out)
+        self.assertIn("2  function retry", out)
+        self.assertIn("agent-blame app/retry.py:1", out)
+
+    def test_bare_file_non_python_line_count(self):
+        self.fx.commit("Add a doc", {"docs/notes.txt": "one\ntwo\nthree\n"})
+        proc = _run_cli(["docs/notes.txt"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("3 line(s)", proc.stdout)
+        self.assertIn("agent-blame docs/notes.txt:1", proc.stdout)
+
+    def test_bare_file_missing_clean_error(self):
+        proc = _run_cli(["nope.py"], self.cwd)
         self.assertEqual(proc.returncode, 2)
         self.assertNotIn("Traceback", proc.stderr)
-        self.assertIn("needs a line number", proc.stderr)
-        self.assertIn("app/retry.py", proc.stderr)
-        self.assertIn(":LINE", proc.stderr)
-        self.assertIn("src/auth/session.py:142", proc.stderr)
+        self.assertIn("neither a file", proc.stderr)
+        self.assertIn("nor a resolvable commit", proc.stderr)
+
+    def test_file_function_resolves_to_def_line(self):
+        # app/retry.py: `def retry` is line 2 - resolution must land there
+        # and SAY SO (the explicit "resolved to line N" contract).
+        proc = _run_cli(["app/retry.py:retry"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = proc.stdout
+        self.assertIn("WHY DOES THIS CODE EXIST?", out)
+        self.assertIn("resolved 'retry' to line 2", out)
+        self.assertIn("app/retry.py:2", out)
+
+    def test_file_function_json_target_and_warning(self):
+        proc = _run_cli(["app/retry.py:retry", "--json"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        data = jsonlib.loads(proc.stdout)
+        self.assertEqual(data["target"]["file"], "app/retry.py")
+        self.assertEqual(data["target"]["start_line"], 2)
+        self.assertTrue(any("resolved 'retry' to line 2" in w
+                            for w in data["warnings"]))
+
+    def test_file_function_in_history_and_risk_modes(self):
+        for flag in ("--history", "--risk"):
+            proc = _run_cli([flag, "app/retry.py:retry"], self.cwd)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("resolved 'retry' to line 2", proc.stdout)
+        self.assertIn("HISTORY", _run_cli(["--history", "app/retry.py:retry"],
+                                           self.cwd).stdout)
+        self.assertIn("CHANGE / REMOVAL ANALYSIS",
+                      _run_cli(["--risk", "app/retry.py:retry"],
+                               self.cwd).stdout)
+
+    def test_file_function_nonexistent_function(self):
+        proc = _run_cli(["app/retry.py:missing_fn"], self.cwd)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn("no function 'missing_fn'", proc.stderr)
+        self.assertIn("retry", proc.stderr)  # lists the available symbols
+
+    def test_file_function_ambiguous_names(self):
+        from tests.gitfixture import GitFixture
+        fx = GitFixture()
+        try:
+            fx.commit("Add ambiguous symbols", {
+                "app/x.py": (
+                    "def retry(fn):\n"
+                    "    return fn()\n"
+                    "\n"
+                    "class Server:\n"
+                    "    def retry(self):\n"
+                    "        return 1\n"
+                ),
+            })
+            proc = _run_cli(["app/x.py:retry"], fx.root)
+            self.assertEqual(proc.returncode, 2)
+            self.assertNotIn("Traceback", proc.stderr)
+            self.assertIn("ambiguous", proc.stderr)
+            self.assertIn("Server.retry", proc.stderr)
+            # The qualified name disambiguates deterministically.
+            proc = _run_cli(["app/x.py:Server.retry"], fx.root)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("resolved 'Server.retry' to line 5", proc.stdout)
+        finally:
+            fx.cleanup()
+
+    def test_file_function_non_python_rejected(self):
+        self.fx.commit("Add a config", {"cfg.yaml": "key: value\n"})
+        proc = _run_cli(["cfg.yaml:key"], self.cwd)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn("only supported for Python files", proc.stderr)
+        self.assertIn("cfg.yaml:<line>", proc.stderr)
+
+    def test_file_function_missing_file(self):
+        proc = _run_cli(["nope.py:retry"], self.cwd)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn("does not exist at HEAD", proc.stderr)
+
+    def test_malformed_target_clean_error(self):
+        for bad in ("app/retry.py:1-", "app/retry.py:foo-bar", "app/retry.py:123abc"):
+            proc = _run_cli([bad], self.cwd)
+            self.assertEqual(proc.returncode, 2, bad)
+            self.assertNotIn("Traceback", proc.stderr)
+            self.assertIn("error", proc.stderr.lower())
+
+
+class TestCliBareSha(unittest.TestCase):
+    """Phase 6C 15: `agent-blame <sha>` is the --commit entry point."""
+
+    def setUp(self):
+        self.fx = make_commit_evolution_fixture()
+        self.cwd = self.fx.root
+
+    def tearDown(self):
+        self.fx.cleanup()
+
+    def test_bare_sha_runs_commit_mode(self):
+        proc = _run_cli([self.fx.shas["B"]], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = proc.stdout
+        self.assertIn("COMMIT ANALYSIS", out)
+        self.assertIn("Fix retry timing for 429s", out)
+        self.assertIn("Baseline", out)
+
+    def test_bare_sha_abbrev(self):
+        proc = _run_cli([self.fx.shas["B"][:10]], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("COMMIT ANALYSIS", proc.stdout)
+
+    def test_bare_sha_json_identical_to_commit_flag(self):
+        bare = _run_cli([self.fx.shas["B"], "--json"], self.cwd)
+        flag = _run_cli(["--commit", self.fx.shas["B"], "--json"], self.cwd)
+        self.assertEqual(bare.returncode, 0, bare.stderr)
+        self.assertEqual(flag.returncode, 0, flag.stderr)
+        self.assertEqual(jsonlib.loads(bare.stdout),
+                         jsonlib.loads(flag.stdout))
+
+    def test_bare_sha_rejects_mode_flags(self):
+        for flag in ("--history", "--risk"):
+            proc = _run_cli([flag, self.fx.shas["B"]], self.cwd)
+            self.assertEqual(proc.returncode, 2, flag)
+            self.assertNotIn("Traceback", proc.stderr)
+            self.assertIn("COMMIT mode", proc.stderr)
+
+    def test_sha_shaped_not_a_commit_falls_back_to_file(self):
+        # A hex-looking string that is neither a commit nor a file: the
+        # sha verification fails and the file interpretation reports it
+        # honestly instead of crashing or guessing.
+        proc = _run_cli(["deadbeef"], self.cwd)
+        self.assertEqual(proc.returncode, 2)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn("neither a file", proc.stderr)
+
+    def test_file_named_like_a_sha_is_not_hijacked(self):
+        # A real file whose NAME looks like a sha must still work as a
+        # bare-file target once the sha check fails to resolve it.
+        self.fx.commit("Add a hex-named file", {"deadbeef": "x\ny\n"})
+        proc = _run_cli(["deadbeef"], self.cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("needs a line number", proc.stdout)
+        self.assertIn("2 line(s)", proc.stdout)
+
 
 class TestCliSecurity(unittest.TestCase):
     """Malicious commit message must not leak control chars via the CLI."""

@@ -100,6 +100,21 @@ Note: this is historical evidence, not a safety guarantee. The developer
 makes the final decision.
 ```
 
+### Target forms
+
+Four target forms are accepted (Phase 6C entry-point resolution — parsing
+and UX only; the analysis engine is identical for all of them):
+
+| Form | Example | Behavior |
+|------|---------|----------|
+| `file:line` (canonical) | `agent-blame src/auth.py:142` | WHY analysis of that line (or `file:start-end`) |
+| `file:function` | `agent-blame src/auth.py:authenticate` | resolves the function/method/class to its DEFINING line via Python AST and analyzes it — "resolved 'authenticate' to line 40" is printed. Qualified names (`Server.handle`) are the identity; an unqualified name must be unique in the file (ambiguity is a clean error naming the candidates) |
+| `file` (bare) | `agent-blame src/auth.py` | prints the file's blame-able lines — Python files show the symbol table with each symbol's defining line, other files show the line count — and points you at `agent-blame <file>:<line>` (an affordance, not an error) |
+| `<sha>` (bare) | `agent-blame d037a21` | equivalent to `--commit d037a21` (verified with `git rev-parse`, so a file whose name looks like a sha is never hijacked) |
+
+Symbol resolution reads the repository at HEAD (the analyzed revision),
+and is Python-only — the same honesty rule as caller analysis.
+
 ### Modes
 
 ```bash
@@ -137,7 +152,7 @@ agent-blame --verbose src/auth/session.py:142
 
 | Option | Meaning |
 |--------|---------|
-| `target` | `<file>:<line>` or `<file>:<start>-<end>` (repo-relative) |
+| `target` | `<file>:<line>` / `<file>:<start>-<end>` (canonical), `<file>:<function>` (resolved to its defining line), `<file>` (blame-able lines), or a bare `<sha>` (→ `--commit`) |
 | `--history` | ranked historical timeline for the target |
 | `--risk` | historical change/removal risk analysis |
 | `--diff` | DIFF mode: analyze the current working-tree changes |

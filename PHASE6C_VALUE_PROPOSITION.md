@@ -247,3 +247,92 @@ The next move — *if the user directs it* — is the §15 target-resolution exp
 - **Classification: USEFUL MVP (C) — PROVISIONAL, unchanged.** AI simulation cannot upgrade it.
 - **REAL HUMAN VALIDATION: NOT RUN** — remains true.
 - No product code was changed in this phase. 279 tests + 5 Phase 6B UX tests remain green (verified 2026-08-18, final state).
+
+---
+
+## Addendum (2026-08-19): Target-resolution retest — §15 implemented and measured
+
+This addendum records the §15 experiment AFTER the proposed change was
+implemented (the addendum supersedes the verdict line "no product code was
+changed in this phase").
+
+### What was implemented (parsing/entry-point/UX only)
+
+- **`agent-blame <file>`** — a bare file now resolves to the file's
+  blame-able lines instead of erroring (Phase 6B §11 suggestion): Python
+  files print the AST symbol table (every symbol's defining line); other
+  files print the line count. Either way the output points at
+  `agent-blame <file>:<line>`. Exit 0 — an affordance, not an error.
+- **`agent-blame <file>:<function>`** — resolves the function/method/class
+  to its DEFINING line via the Phase 2C stdlib-AST symbol extraction at
+  HEAD, with an explicit "resolved '<name>' to line N" warning in terminal
+  and JSON. Qualified names (`Server.handle`) are the identity; an
+  unqualified name must be unique in the file (ambiguity is a clean error
+  naming the candidates — never a guess); non-Python files are rejected
+  (Python-only, the same honesty rule as the caller machinery).
+- **`agent-blame <sha>`** — equivalent to `--commit <sha>`, verified with
+  `git rev-parse` so a hex-shaped FILE in the repo is never hijacked; a
+  sha that does not resolve falls through to the bare-file affordance.
+
+Explicitly NOT changed: ranking, confidence, movement, regression,
+evidence, merge analysis, languages, LLM, web UI, indexing, blame
+ancestry, JSON schema (the resolution is surfaced through the existing
+`warnings` field), and `--help` wording. Validation: 321 tests green (284
+before + 37 new); JSON for `agent-blame <sha>` is identical to
+`--commit <sha> --json`.
+
+### Retest: the exact Condition C matrix, rerun
+
+Same harness (`run_session.py`), same `CAPABILITY_ENV` prompt (verbatim),
+same personas/models/tasks/command and wall budgets — the ONLY change is
+the tool under test. New session IDs (`*_6C2_C`) keep the original
+transcripts intact; transcripts are in `validation/ai/transcripts/`.
+
+| Session | Before (6C) | After (6C2) | Target form used when valid |
+|---|---|---|---|
+| ST1 T1 WHY | 0 valid — `models.py:prepare_url` (function-as-line) | **1 valid** — `models.py:483` | `file:line` (after `--help`) |
+| ST2 T2 MOVED | 0 valid — invented `--file/--function` | 0 valid — invented `--function` | — |
+| ST4 T4 COMMIT | 0 valid — bare sha rejected | 0 valid — invented `--file/--line` | — |
+| ST5 T5 CALLER | 1 valid — `:969` + `--risk`/`--history` after `--help` | **2 valid** — `app.py:dispatch_request` (×2) | `file:function` (no `--help`) |
+| ST6 T6 REGRESSION | 0 valid — invented `--file/--line/--show-code` | 0 valid — invented `--file/--function/--line` | — |
+| ST7 T7 INSUFFICIENT | 0 valid — never tried | 0 valid — invented `--file/--line` | — |
+| **Sessions with ≥1 valid** | **1/6** | **2/6** | |
+
+**The §15 success criterion (≥3/6 sessions with a valid invocation without
+syntax guidance) was NOT reached: 2/6.**
+
+### What the retest shows
+
+1. **`file:function` converted exactly the class it was built for.** ST5 ran
+   the IDENTICAL command that failed before (`app.py:dispatch_request` →
+   "bad line spec") and it now resolves to the git-verified line 969, HIGH
+   0.65, without reading `--help`. The agent reached for the function name
+   naturally — the §15 hypothesis, demonstrated.
+2. **ST1 converted via the canonical `file:line` form** (`models.py:483`
+   after `--help`) — a class-C conversion, though not directly attributable
+   to the new forms.
+3. **The remaining 4/6 failures are all the same class:** git-flag-shaped
+   guesses (`--file`, `--function`, `--line`, `-L`, `--show-code`, `--all`)
+   from agents that never read `--help` and never ran a bare-file or colon
+   form — so they never SAW the affordance or the quick start. No parsing
+   change can reach an agent that invents flags it never saw; that class
+   needs a different lever (or is a model-behavior boundary, cf. Phase 6B
+   §11).
+4. **The bare-sha form was exercised by zero sessions in either run** (ST4
+   used `--file/--line` this time instead of the bare sha it tried before).
+   Its equivalence to `--commit` is test-covered, but its natural adoption
+   remains unmeasured.
+
+### Honest limitations
+
+- n=6 per arm, temperature 0.6, single model family (qwen3-coder): the
+  1/6 → 2/6 delta is directional, not statistical. The tool is the only
+  changed variable, but session-level variance is real (ST4 tried a bare
+  sha before and flags now).
+- The bare-file affordance never fired in this run (no agent ran a bare
+  file alone), so its conversion value stays unmeasured by this retest.
+- This remains AI evidence. **REAL HUMAN VALIDATION: NOT RUN** — still true.
+- Classification remains **USEFUL MVP (C), provisional**: the invocation
+  contract is no longer the single blocker (2 of the 6 agents still invent
+  flags without reading anything), but value is still only demonstrated
+  post-invocation.

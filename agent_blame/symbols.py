@@ -56,6 +56,7 @@ from .graph import _is_test_path
 from .models import CallerRef, Symbol, Target
 from .ranking import weight_for
 from .repository import Repository
+from .target import TargetError
 
 # Relationship types (stable, machine-readable).
 DIRECT_CALL = "DIRECT_CALL"
@@ -299,6 +300,63 @@ def _innermost_symbol_at(symbols: List[Symbol], line: int) -> Optional[Symbol]:
             if best is None or s.start_line > best.start_line:
                 best = s
     return best
+
+
+def resolve_symbol(source: str, path: str, name: str) -> Symbol:
+    """Resolve a function/method/class name to its defining Symbol.
+
+    Phase 6C `file:function` entry point. Deterministic resolution rules
+    (never a guess, mirroring the caller classifier's conservatism):
+      - a QUALIFIED name (contains ".", e.g. "Server.handle") matches the
+        symbol whose qualified name is exactly that - the qualified name
+        IS the identity, so it must match exactly one symbol;
+      - an unqualified (leaf) name must match exactly ONE symbol in the
+        file - more than one is an ambiguity error naming the candidates
+        (the user disambiguates with a qualified name), zero is a
+        not-found error listing the available symbols.
+
+    Raises TargetError (a clean usage error) on ambiguity/absence, never
+    a traceback.
+    """
+    symbols = extract_symbols(source, path)
+    if not symbols:
+        raise TargetError(
+            f"no symbols found in {path!r} (empty, unparseable, or not "
+            "Python source)"
+        )
+    if "." in name:
+        exact = [s for s in symbols if s.name == name]
+        if len(exact) == 1:
+            return exact[0]
+        if len(exact) > 1:
+            raise TargetError(_ambiguous_symbol_msg(path, name, exact))
+        shown = ", ".join(s.name for s in symbols[:15])
+        more = f" (+{len(symbols) - 15} more)" if len(symbols) > 15 else ""
+        raise TargetError(
+            f"no symbol {name!r} in {path}; available symbols: {shown}{more}"
+        )
+    leaf = [s for s in symbols if s.name.rsplit(".", 1)[-1] == name]
+    if len(leaf) == 1:
+        return leaf[0]
+    if len(leaf) > 1:
+        raise TargetError(_ambiguous_symbol_msg(path, name, leaf))
+    shown = ", ".join(s.name for s in symbols[:15])
+    more = f" (+{len(symbols) - 15} more)" if len(symbols) > 15 else ""
+    raise TargetError(
+        f"no function {name!r} in {path}; available symbols: {shown}{more}"
+    )
+
+
+def _ambiguous_symbol_msg(path: str, name: str, matches: List[Symbol]) -> str:
+    """Deterministic ambiguity message naming every candidate."""
+    cands = " and ".join(
+        f"{path}:{s.name}" for s in sorted(matches, key=lambda s: s.name)
+    )
+    return (
+        f"function {name!r} is ambiguous in {path}: matches {cands}; "
+        "use the qualified name (e.g. <file>:<qualified.name>) to "
+        "disambiguate"
+    )
 
 
 def enclosing_symbol(repo: Repository, revision: str, target: Target,

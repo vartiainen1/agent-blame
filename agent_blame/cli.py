@@ -29,7 +29,7 @@ from .models import Target
 from .output import (render_commit_terminal, render_diff_terminal,
                      render_json, render_terminal, sanitize)
 from .repository import discover_repository, resolve_repo_path
-from .target import TargetError, parse_target
+from .target import TargetError, classify_target
 
 
 _QUICK_START = """\
@@ -132,12 +132,6 @@ def main(argv=None) -> int:
         parser.print_help()
         return 0
 
-    try:
-        target = parse_target(args.target)
-    except TargetError as e:
-        print(f"agent-blame: error: {sanitize(str(e))}", file=sys.stderr)
-        return 2
-
     start = os.path.abspath(args.cwd) if args.cwd else os.getcwd()
     repo = discover_repository(start)
     if repo is None:
@@ -148,10 +142,27 @@ def main(argv=None) -> int:
         )
         return 1
 
+    try:
+        spec = classify_target(args.target)
+    except TargetError as e:
+        print(f"agent-blame: error: {sanitize(str(e))}", file=sys.stderr)
+        return 2
+
+    if spec.kind == "sha":
+        return _run_bare_sha(repo, spec.path, mode, args)
+
+    if spec.kind == "bare_file":
+        return _run_bare_file(repo, spec.path, args)
+
+    if spec.kind == "file_function":
+        return _run_file_function(repo, spec.path, spec.line_part, mode, args)
+
+    # file_line: the unchanged path (parse_target already validated the
+    # numeric spec during classification).
     target = Target(
-        file=resolve_repo_path(repo, target.file),
-        start_line=target.start_line,
-        end_line=target.end_line,
+        file=resolve_repo_path(repo, spec.path),
+        start_line=spec.start_line,
+        end_line=spec.end_line,
     )
     if not target.file:
         print("agent-blame: error: empty file path after normalization",
@@ -211,6 +222,15 @@ def _run_commit(args) -> int:
         )
         return 1
 
+    return _run_commit_repo(repo, rev, args)
+
+
+def _run_commit_repo(repo, rev, args) -> int:
+    """Shared COMMIT-mode body: analyze one commit and render it.
+
+    Used by both `--commit REV` and the Phase 6C bare-sha target
+    (`agent-blame <sha>` is equivalent to `agent-blame --commit <sha>`).
+    """
     from .commit import CommitError, analyze_commit
     try:
         result = analyze_commit(repo, rev)
@@ -222,6 +242,133 @@ def _run_commit(args) -> int:
         print(render_json(result), end="")
     else:
         print(render_commit_terminal(result, verbose=args.verbose), end="")
+    return 0
+
+
+def _run_bare_sha(repo, rev, mode, args) -> int:
+    """A bare hex target: equivalent to `--commit <rev>` (Phase 6C).
+
+    The sha is verified against the repository with git itself, so a
+    hex-shaped FILE name in the repo is never hijacked - when the string
+    does not resolve as a commit it falls through to the bare-file
+    affordance. Mode flags are incompatible: a sha IS a commit target.
+    """
+    if mode != "why":
+        print(
+            f"agent-blame: error: {mode.upper()} mode cannot analyze a bare "
+            f"commit sha; a bare sha means COMMIT mode - use "
+            f"`agent-blame --commit {rev}` or drop the mode flag",
+            file=sys.stderr,
+        )
+        return 2
+    from .git import try_git_output
+    resolved = try_git_output(
+        ["rev-parse", "--verify", f"{rev}^{{commit}}"], cwd=repo.root)
+    if resolved is None:
+        # sha-shaped but not a commit here: interpret as a file - a real
+        # file whose name looks like a sha still works via the affordance.
+        return _run_bare_file(repo, rev, args)
+    return _run_commit_repo(repo, rev, args)
+
+
+def _run_bare_file(repo, path, args) -> int:
+    """A bare file target: resolve it to the file's blame-able lines
+    (Phase 6C 15 / Phase 6B 11 affordance).
+
+    Python files print their symbol table - every symbol's DEFINING line -
+    so the user can pick a line; other files print the line count. Either
+    way the user is pointed at `agent-blame <file>:<line>`. This is a
+    deterministic entry-point affordance, never an analysis; it converts
+    the most common failed first step (bare `agent-blame <file>`) instead
+    of rejecting it.
+    """
+    norm = resolve_repo_path(repo, path)
+    if not norm:
+        print("agent-blame: error: empty file path after normalization",
+              file=sys.stderr)
+        return 2
+    from .git import try_git_output
+    source = try_git_output(["show", f"HEAD:{norm}"], cwd=repo.root)
+    if source is None:
+        print(
+            f"agent-blame: error: target {path!r} is neither a file in this "
+            "repository (checked at HEAD) nor a resolvable commit",
+            file=sys.stderr,
+        )
+        return 2
+    lines = source.splitlines()
+    out = [
+        f"agent-blame: target {norm!r} needs a line number; this file has "
+        f"{len(lines)} line(s).",
+        "",
+    ]
+    from .symbols import detect_language, extract_symbols  # lazy, per convention
+    if detect_language(norm) == "python":
+        syms = sorted(extract_symbols(source, norm),
+                      key=lambda s: s.start_line)
+        if syms:
+            out.append(f"  Symbols in {norm}:")
+            for s in syms:
+                out.append(f"    {s.start_line:>6}  {s.kind} {s.name}")
+            out.append("")
+    out.append(
+        f"  Run `agent-blame {norm}:<line>` on one of the lines above, "
+        f"e.g. `agent-blame {norm}:1`."
+    )
+    print("\n".join(out))
+    return 0
+
+
+def _run_file_function(repo, path, name, mode, args) -> int:
+    """Resolve `<file>:<function>` to the function's defining line
+    (Phase 6C 15), then run the ordinary pipeline on that line.
+
+    Uses the Phase 2C AST symbol extraction at HEAD; the resolution is
+    EXPLICIT - a "resolved <name> to line N" warning is added to the
+    result (terminal + JSON) so the user always sees what was analyzed.
+    Qualified names (Server.handle) win; an unqualified name must be
+    unique in the file (ambiguity is a clean error, never a guess).
+    Non-Python files are rejected: symbol resolution is Python-only by
+    the same honesty rule as the rest of the caller machinery.
+    """
+    norm = resolve_repo_path(repo, path)
+    if not norm:
+        print("agent-blame: error: empty file path after normalization",
+              file=sys.stderr)
+        return 2
+    from .symbols import detect_language, resolve_symbol  # lazy, per convention
+    if detect_language(norm) != "python":
+        print(
+            f"agent-blame: error: symbol resolution (file:function) is only "
+            f"supported for Python files; use {norm}:<line> for this file",
+            file=sys.stderr,
+        )
+        return 2
+    from .git import try_git_output
+    source = try_git_output(["show", f"HEAD:{norm}"], cwd=repo.root)
+    if source is None:
+        print(f"agent-blame: error: file {norm!r} does not exist at HEAD",
+              file=sys.stderr)
+        return 2
+    try:
+        sym = resolve_symbol(source, norm, name)
+    except TargetError as e:
+        print(f"agent-blame: error: {sanitize(str(e))}", file=sys.stderr)
+        return 2
+
+    target = Target(file=norm, start_line=sym.start_line,
+                    end_line=sym.start_line)
+    result = analyze(repo, target, mode=mode)
+    result.warnings.insert(
+        0,
+        f"resolved {name!r} to line {sym.start_line} ({sym.name}, "
+        f"{sym.kind} at {norm}:{sym.start_line})",
+    )
+
+    if args.json:
+        print(render_json(result), end="")
+    else:
+        print(render_terminal(result, verbose=args.verbose), end="")
     return 0
 
 
