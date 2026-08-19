@@ -2,6 +2,17 @@
 
 **Deterministic Git archaeology: why this code exists, how it evolved, and what historical evidence matters before you change or remove it.**
 
+[![CI](https://github.com/vartiainen1/agent-blame/actions/workflows/ci.yml/badge.svg)](https://github.com/vartiainen1/agent-blame/actions/workflows/ci.yml)
+[![license](https://img.shields.io/github/license/vartiainen1/agent-blame)](https://github.com/vartiainen1/agent-blame/blob/master/LICENSE)
+[![python](https://img.shields.io/badge/python-3.9%20%7C%203.11%20%7C%203.12-3776AB)](https://github.com/vartiainen1/agent-blame/actions)
+[![dependencies-0](https://img.shields.io/badge/dependencies-0-brightgreen)](https://github.com/vartiainen1/agent-blame)
+[![Visitors](https://visitor-badge.laobi.icu/badge?page_id=vartiainen1.agent-blame&left_text=Visitors&right_color=2F80ED)](https://github.com/vartiainen1/agent-blame)
+[![companion-error-log](https://img.shields.io/badge/companion-agent--error--log-2ea44f)](https://github.com/vartiainen1/agent-error-log)
+[![companion-decision-log](https://img.shields.io/badge/companion-agent--decision--log-2ea44f)](https://github.com/vartiainen1/agent-decision-log)
+[![companion-log-ai](https://img.shields.io/badge/companion-agent--log--ai-2ea44f)](https://github.com/vartiainen1/agent-log-ai)
+[![companion-memory](https://img.shields.io/badge/companion-agent--memory-2ea44f)](https://github.com/vartiainen1/agent-memory)
+[![companion-diff-gate](https://img.shields.io/badge/companion-agent--diff--gate-2ea44f)](https://github.com/vartiainen1/agent-diff-gate)
+
 `agent-blame` is a local-first, dependency-free command-line tool that answers a question `git blame` never does: not *who* changed a line, but *why* that code exists and what its history says about changing it.
 
 ```bash
@@ -341,6 +352,21 @@ tests/
 ```
 
 ---
+
+## Companion tools
+
+`agent-blame` is the **history layer** of the agent-tool family — the other
+members remember what happened so an AI coding agent can learn and stay
+honest:
+
+| Repo | What it does | How it works |
+|---|---|---|
+| [agent-error-log](https://github.com/vartiainen1/agent-error-log) | what BROKE | text log + linter + git gate |
+| [agent-decision-log](https://github.com/vartiainen1/agent-decision-log) | what was CHOSEN and why | append-only decisions + currency chain |
+| [agent-log-ai](https://github.com/vartiainen1/agent-log-ai) | *why* it kept happening | heuristics select → LLM reasons |
+| [agent-memory](https://github.com/vartiainen1/agent-memory) | persistent project knowledge | typed, trusted, auditable memory |
+| [agent-diff-gate](https://github.com/vartiainen1/agent-diff-gate) | what must never be COMMITTED | pre-commit diff scan + gate |
+| **agent-blame (this)** | **why the code exists** | **deterministic git archaeology** |
 
 ## License
 

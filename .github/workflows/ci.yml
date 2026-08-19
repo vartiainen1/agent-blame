@@ -1,0 +1,36 @@
+name: CI
+
+# Runs on every push and pull request. The test suite builds miniature git
+# repositories with known histories and asserts on the algorithm's
+# conclusions — the same suite a developer runs locally, enforced here on
+# clean runners across platforms and Python versions.
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  test:
+    name: tests (py ${{ matrix.python-version }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.9", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Compile check
+        run: python -m py_compile agent_blame/*.py
+
+      - name: Unit tests (full suite)
+        run: python -m unittest discover -s tests
+
+      - name: CLI smoke test
+        run: python -m agent_blame --version
