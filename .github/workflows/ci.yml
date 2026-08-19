@@ -27,7 +27,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Compile check
-        run: python -m py_compile agent_blame/*.py
+        # compileall takes a directory - no shell glob, so this works on
+        # Windows cmd too (py_compile agent_blame/*.py would not expand).
+        run: python -m compileall -q agent_blame
 
       - name: Unit tests (full suite)
         run: python -m unittest discover -s tests
