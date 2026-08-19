@@ -8,3 +8,7 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+
+# Facilitator-only study ground truth - kept out of the public repo
+# to protect the not-yet-run human study from answer leakage.
+validation/REFERENCE_TARGETS.md
